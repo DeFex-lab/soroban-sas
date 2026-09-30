@@ -1934,7 +1934,7 @@ fn validate_expiration_before_submit(
 
 /// Resolves the timestamp a new attestation is issued with (#172).
 ///
-/// Prefers the network ledger close time via [`RpcClient::get_latest_ledger_clock`],
+/// Prefers the network ledger close time via `soroban_sas_sdk::rpc::RpcClient::get_latest_ledger_clock`,
 /// validated against the local clock by
 /// [`soroban_sas_sdk::rpc::resolve_issuance_time`]. Falls back to the local
 /// clock only when `allow_local` is set; otherwise a fetch failure or an

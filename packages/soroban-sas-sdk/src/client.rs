@@ -57,14 +57,14 @@ const BASE_FEE: u32 = 100;
 /// Outcome of simulating a write call without signing or submitting it
 /// (issue #329's `--dry-run`): the resource footprint/fee a real submission
 /// would need to carry, obtained from the same `simulateTransaction` draft
-/// step [`SASClient::submit_write`] runs before it ever builds a signed
+/// step `SASClient::submit_write` runs before it ever builds a signed
 /// envelope. No sequence number is consumed and no signature is produced.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DryRunResult {
     /// The contract function that was simulated.
     pub function_name: String,
     /// Stroops the simulation reports as the resource fee — the amount a
-    /// real submission would add on top of [`BASE_FEE`].
+    /// real submission would add on top of `BASE_FEE`.
     pub min_resource_fee: i64,
     /// `BASE_FEE + min_resource_fee`: the total fee a real submission of
     /// this exact call would carry under [`FeePolicy::Default`].

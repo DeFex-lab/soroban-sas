@@ -16,7 +16,7 @@ The primary goal is to offer a seamless and intuitive user experience:
 ## Example Use Cases
 
 - **Decentralized Identity (DID)**: Issue proofs of personhood or identity verification.
-- **DeFi Compliance**: Attach KYC/AML attestations to accounts for permissioned liquidity pools.
+- `DeFi Compliance`**: Attach KYC/AML attestations to accounts for permissioned liquidity pools.
 - **DAO Governance**: Issue reputation scores or contribution attestations to weight voting power.
 - **Social Networks**: Create a web of trust with user-issued endorsements and social graphs.
 
@@ -28,10 +28,7 @@ For an in-depth look at how state is managed, the interactions between various s
 
 Details about our security perimeter, administrative capabilities, and known vulnerabilities can be found in the [Security Assumptions and Threat Model](docs/security.md) guide.
 
-SAS fee changes emit `FeeConfigUpdated` events with previous and new values;
-see [Contract Events](docs/events.md) for payloads and SDK parsing. Dependency
-security checks and indexer fuzzing commands are described in
-[Contributing](CONTRIBUTING.md).
+Dependency security checks and indexer fuzzing commands are described in [Contributing](CONTRIBUTING.md).
 
 ## Project Status
 
@@ -59,7 +56,7 @@ The workspace has evolved beyond initial mocks and now includes comprehensive do
   - Associates individual attestations with their defining schemas.
   - Records the core attestation payload along with issuer and recipient details.
   - Applies rules surrounding revocation, expiration, and any associated fees.
-  - Facilitates off-chain verification processes, akin to EIP-712 standards.
+  - Facilitates off-chain verification processes, kin to EIP-712 standards.
 
 - `contracts/indexer`
   **Role**: Provides efficient lookup and query functionalities.
@@ -84,6 +81,12 @@ The workspace has evolved beyond initial mocks and now includes comprehensive do
   It includes builders such as `SchemaBuilder` and client helpers such as
   `SASClient::multi_attest` for batch attestation submission and
   `SASClient::fetch_admin` for deployment and governance verification.
+  API documentation is published to GitHub Pages at
+  https://soroban-sas.github.io/soroban-sas/soroban-sas_sdk/. To build it locally:
+  ```bash
+  cargo doc -p soroban-sas-sdk --no-deps
+  ```
+  The generated HTML lands in `target/doc/soroban-sas_sdk/index.html`.
 
 ### CLI and Operations
 
@@ -96,6 +99,9 @@ The workspace has evolved beyond initial mocks and now includes comprehensive do
 - `tools/schema-explorer`
   A prototype read-only web dashboard for browsing a Schema Registry and validating draft schemas.
   See the [Schema Explorer README](tools/schema-explorer/README.md).
+
+- `.github_workflows/docs.yml`
+  Builds the `soroban-sas-sdk` rustdoc and deploys it to GitHub Pages on every push to `main`.
 
 - `.githooks/`
   Opt-in `pre-commit` and `pre-push` hooks that run CI's formatting and lint checks locally.

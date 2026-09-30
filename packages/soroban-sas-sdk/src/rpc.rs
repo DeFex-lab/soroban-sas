@@ -193,7 +193,7 @@ impl RpcClient {
     }
 
     /// Overrides the largest response body this client will accept
-    /// ([`DEFAULT_MAX_RESPONSE_BYTES`](crate::limits::DEFAULT_MAX_RESPONSE_BYTES)
+    /// ([`crate::limits::DEFAULT_MAX_RESPONSE_BYTES`]
     /// by default). Raise it for endpoints that legitimately return very
     /// large `getLedgerEntries` / `simulateTransaction` payloads.
     pub fn with_max_response_bytes(mut self, max_response_bytes: usize) -> Self {
