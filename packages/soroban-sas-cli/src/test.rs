@@ -1583,6 +1583,7 @@ mod schema_withdraw_fees_tests {
         assert!(res.is_ok(), "withdraw-fees should settle: {res:?}");
     }
 }
+
 /// Issue #306: `query by-* --cursor/--limit` pagination flags.
 #[cfg(test)]
 mod pagination_query_tests {
