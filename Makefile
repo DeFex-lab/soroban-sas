@@ -76,11 +76,13 @@ install-hooks:
 
 # Standalone node from docker-compose.yml; see docs/local-development.md.
 localnet:
+	@./scripts/docker_preflight.sh
+	@echo "Starting Stellar Quickstart..."
 	$(DOCKER_COMPOSE) up -d stellar-quickstart
 	bash ./scripts/wait_for_localnet.sh
 
 localnet-down:
-	$(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE) down -v --remove-orphans
 
 deploy-local:
 	bash ./scripts/deploy.sh --network local
