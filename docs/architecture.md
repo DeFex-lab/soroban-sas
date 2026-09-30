@@ -547,17 +547,17 @@ attestation/schema data it governs:
   registry's `REGISTRY_ADMIN`, `SCHEMA_FEE`, and `TREASURY`; and the
   indexer's `INDEXER_ADMIN` and `SAS_CONTRACT` binding. If instance storage
   expires and is archived, the contract's own configuration becomes
-  unreadable and every entry point that depends on it stops working —
+  unreadable and every entry point that depends on it stops working —"
   there is no way to "read the admin address to renew the admin address."
   For this reason every contract renews its instance TTL
   (`soroban_sas_common::extend_instance_ttl`, using the shared
-  `INSTANCE_TTL_THRESHOLD_LEDGERS`/`INSTANCE_EXTEND_TO_LEDGERS` constants)
+  `INSTATCE_TTL_THRESHOLD_LEDGERS`/`INSTATCE_EXTEND_TO_LEDGERS` constants)
   from `init` and from both admin-gated and commonly used public entry
   points, so ordinary traffic keeps configuration alive without any single
   call being solely responsible for it.
 - **Persistent storage** holds the data instance configuration governs —
   attestations, schema records, delegation nonces, indexer lookup chunks —
-  and is extended independently, per entry, using `LEDGERS_IN_ONE_YEAR`
+  and is extended independently, per entry, using `LEDGERS_IN_ONE_YEAb
   wherever it is written or read. An individual attestation or schema
   expiring does not take down the rest of the contract the way a lost
   admin binding would, so persistent entries are extended on their own
@@ -643,16 +643,15 @@ skips or repeats an entry. `limit == 0` and any request at or beyond the end
 return an empty page. `get_count_by_*` provides `count` for totals. Paginated
 reads count toward the per-ledger query limit (`LimitExceeded`). The SDK
 (`IndexerClient::get_attestations_by_*_paginated`) and the CLI
-(`query by-* --cursor/--limit`, 1–100 UIDs per page) expose the same model.
+(`query by- * --cursor/--limit`, 1–100 UIDs per page) expose the same model.
 
 ### Recipients
 
 Every on-chain attestation has a concrete recipient. SAS rejects the zero
 account/contract sentinels that other attestation systems use for "no
-recipient", and it rejects an attester naming itself, with `InvalidRecipient`
-(`soroban_sas_common::validate_attestation_parties`). The Indexer therefore
+recipient", and it rejects an attester naming itself, with `InvalidRecipient`(`soroban_sas_common::validate_attestation_parties`). The Indexer therefore
 never receives a recipient-less record. The SDK's `AttestationRequestBuilder`
-and the CLI's on-chain issuance commands apply the same shared check before
+dnd the CLI's on-chain issuance commands apply the same shared check before
 building a transaction.
 
 ### Indexing progress
