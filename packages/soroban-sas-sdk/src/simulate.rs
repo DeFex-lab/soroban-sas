@@ -19,6 +19,7 @@
 //! one contract tooling is meant to use off-chain.
 
 use crate::errors::SdkError;
+use sha2::{Digest, Sha256};
 use soroban_sdk::xdr::{
     DecoratedSignature, Hash, HostFunction, InvokeContractArgs, InvokeHostFunctionOp, Limits, Memo,
     MuxedAccount, Operation, OperationBody, Preconditions, ReadXdr, ScAddress, ScSymbol, ScVal,
@@ -26,7 +27,7 @@ use soroban_sdk::xdr::{
     TransactionExt, TransactionSignaturePayload, TransactionSignaturePayloadTaggedTransaction,
     TransactionV1Envelope, Uint256, VecM, WriteXdr,
 };
-use soroban_sdk::{Bytes, Env, TryFromVal, TryIntoVal, Val};
+use soroban_sdk::{Env, TryFromVal, TryIntoVal, Val};
 
 /// Placeholder source account used for read-only `simulateTransaction`
 /// calls, which never touch ledger state or require a real signer — RPC
@@ -211,8 +212,30 @@ pub fn validate_simulated_transaction(
 /// submitting and authorizing its own call. A relayer submitting on behalf
 /// of a different `require_auth` address would need an explicit, separately
 /// signed `SorobanAuthorizationEntry`, which this does not build.
+///
+/// `env` is accepted for API compatibility only: hashing is done with a
+/// pure-Rust SHA-256 so the same code path also runs off the host
+/// (see [`sign_transaction_with_network_id`]).
 pub fn sign_transaction(
     env: &Env,
+    network_id: &[u8; 32],
+    tx: Transaction,
+    secret_seed: &[u8; 32],
+) -> Result<String, SdkError> {
+    let _ = env;
+    sign_transaction_with_network_id(network_id, tx, secret_seed)
+}
+
+/// `SHA-256(network_passphrase)` — the network ID every Stellar transaction
+/// signature commits to.
+pub fn network_id(network_passphrase: &str) -> [u8; 32] {
+    Sha256::digest(network_passphrase.as_bytes()).into()
+}
+
+/// [`sign_transaction`] without a host [`Env`]. Because `Env` is `!Send`,
+/// this is the variant the SDK's `*_async` methods use on their I/O worker
+/// thread; the produced envelope is byte-for-byte identical.
+pub fn sign_transaction_with_network_id(
     network_id: &[u8; 32],
     tx: Transaction,
     secret_seed: &[u8; 32],
@@ -239,10 +262,7 @@ pub fn sign_transaction(
     let payload_bytes = payload.to_xdr(Limits::none()).map_err(|e| {
         SdkError::DecodingError(format!("failed to encode signature payload: {e:?}"))
     })?;
-    let hash: [u8; 32] = env
-        .crypto()
-        .sha256(&Bytes::from_slice(env, &payload_bytes))
-        .to_array();
+    let hash: [u8; 32] = Sha256::digest(&payload_bytes).into();
 
     let signature_bytes = crate::signature::generate_delegated_signature(secret_seed, &hash);
     let hint = SignatureHint([
@@ -313,7 +333,21 @@ mod tests {
     use super::*;
     use soroban_sas_common::UID;
     use soroban_sdk::xdr::Limits as XdrLimits;
+    use soroban_sdk::Bytes;
     use soroban_sdk::BytesN;
+
+    #[test]
+    fn network_id_matches_host_sha256() {
+        // The Env-free hash must agree with the host's, or signatures
+        // produced by the async path would be rejected by the network.
+        let env = Env::default();
+        let passphrase = "Test SDF Network ; September 2015";
+        let host: [u8; 32] = env
+            .crypto()
+            .sha256(&Bytes::from_slice(&env, passphrase.as_bytes()))
+            .to_array();
+        assert_eq!(network_id(passphrase), host);
+    }
 
     #[test]
     fn builds_a_well_formed_invoke_transaction() {

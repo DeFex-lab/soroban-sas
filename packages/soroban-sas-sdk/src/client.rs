@@ -126,6 +126,7 @@ fn apply_fee_policy(base_fee: u32, resource_fee: i64, policy: &FeePolicy) -> Res
 }
 
 /// The primary client for interacting with the SAS contract.
+#[derive(Clone)]
 pub struct SASClient {
     /// The Soroban contract ID.
     pub contract_id: String,
@@ -146,8 +147,6 @@ pub struct SASClient {
     secret_seed: Option<[u8; 32]>,
     /// Optional configured Schema Registry contract ID.
     registry_contract_id: Option<String>,
-    /// Optional configured Env for SDK operations.
-    env: Option<Env>,
 }
 
 impl SASClient {
@@ -162,7 +161,6 @@ impl SASClient {
             network_passphrase: None,
             secret_seed: None,
             registry_contract_id: None,
-            env: None,
         }
     }
 
@@ -187,10 +185,6 @@ impl SASClient {
     }
 
     /// Configures the [`Env`] for this [`SASClient`].
-    pub fn with_env(mut self, env: Env) -> Self {
-        self.env = Some(env);
-        self
-    }
 
     /// Configures the signing key (32-byte secret seed) for transactions submitted by
     /// this [`SASClient`].
@@ -240,18 +234,15 @@ impl SASClient {
 
     /// Calls `SAS::admin()` via `simulateTransaction` to read the current
     /// contract administrator without requiring a signing key.
-    pub fn fetch_admin(&self, env: &Env, rpc: &RpcClient) -> Result<Address, SdkError> {
+    pub fn fetch_admin(&self, rpc: &RpcClient) -> Result<Address, SdkError> {
+        let env = &Env::default();
         invoke_read_only(env, rpc, &self.contract_id, "admin", vec![])
     }
 
     /// Calls `SAS::verify_attestation(uid)` via `simulateTransaction` — a
     /// pure read: no signing key or transaction submission required.
-    pub fn verify_attestation(
-        &self,
-        env: &Env,
-        rpc: &RpcClient,
-        uid: &[u8; 32],
-    ) -> Result<bool, SdkError> {
+    pub fn verify_attestation(&self, rpc: &RpcClient, uid: &[u8; 32]) -> Result<bool, SdkError> {
+        let env = &Env::default();
         let uid = UID(BytesN::from_array(env, uid));
         let arg = simulate::encode_arg(env, &uid)?;
         invoke_read_only(env, rpc, &self.contract_id, "verify_attestation", vec![arg])
@@ -262,11 +253,8 @@ impl SASClient {
     /// is fee-free and `attest_with_value` must be called with `value == 0`;
     /// `Ok(Some((token, amount)))` is the exact payment a caller must supply.
     /// Intended for SDK/CLI front-ends to display the fee before signing.
-    pub fn fetch_fee(
-        &self,
-        env: &Env,
-        rpc: &RpcClient,
-    ) -> Result<Option<(Address, i128)>, SdkError> {
+    pub fn fetch_fee(&self, rpc: &RpcClient) -> Result<Option<(Address, i128)>, SdkError> {
+        let env = &Env::default();
         invoke_read_only(env, rpc, &self.contract_id, "get_fee", vec![])
     }
 
@@ -275,13 +263,13 @@ impl SASClient {
     /// Requires `admin_secret_seed`'s account to be the SAS administrator.
     pub fn set_fee(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         admin_secret_seed: &[u8; 32],
         token: &str,
         amount: i128,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         if amount <= 0 {
             return Err(SdkError::InvalidInput(
                 "fee amount must be greater than 0".to_string(),
@@ -293,7 +281,6 @@ impl SASClient {
             simulate::encode_arg(env, &amount)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             admin_secret_seed,
@@ -309,12 +296,12 @@ impl SASClient {
     /// `Unauthorized`) without signing or submitting a transaction.
     pub fn set_fee_dry_run(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         admin_secret_seed: &[u8; 32],
         token: &str,
         amount: i128,
     ) -> Result<DryRunResult, SdkError> {
+        let env = &Env::default();
         if amount <= 0 {
             return Err(SdkError::InvalidInput(
                 "fee amount must be greater than 0".to_string(),
@@ -334,13 +321,12 @@ impl SASClient {
     /// SAS administrator.
     pub fn clear_fee(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         admin_secret_seed: &[u8; 32],
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             admin_secret_seed,
@@ -369,10 +355,10 @@ impl SASClient {
     /// - `Ok(Some(n))`: `n` is the highest nonce consumed so far; the next valid nonce is any value strictly greater than `n` (i.e. > `n`).
     pub fn fetch_delegation_nonce(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         attester: &Address,
     ) -> Result<Option<u64>, SdkError> {
+        let env = &Env::default();
         let arg = simulate::encode_arg(env, attester)?;
         invoke_read_only(
             env,
@@ -391,11 +377,11 @@ impl SASClient {
     /// contract this client otherwise talks to.
     pub fn get_schema(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         registry_contract_id: &str,
         uid: &[u8; 32],
     ) -> Result<Option<SchemaRecord>, SdkError> {
+        let env = &Env::default();
         let uid = UID(BytesN::from_array(env, uid));
         let arg = simulate::encode_arg(env, &uid)?;
         invoke_read_only(env, rpc, registry_contract_id, "get_schema", vec![arg])
@@ -410,13 +396,13 @@ impl SASClient {
     /// canonical rules it uses on registration.
     pub fn get_schema_by_content(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         registry_contract_id: &str,
         schema: &str,
         resolver: &Address,
         revocable: bool,
     ) -> Result<Option<SchemaRecord>, SdkError> {
+        let env = &Env::default();
         let schema_val = SorobanString::from_str(env, schema);
         let args = vec![
             simulate::encode_arg(env, &schema_val)?,
@@ -439,10 +425,10 @@ impl SASClient {
     /// `record.revoked` distinguishing the two (#214).
     pub fn fetch_attester_key(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         attester: &str,
     ) -> Result<Option<soroban_sas_common::AttesterKeyRecord>, SdkError> {
+        let env = &Env::default();
         let attester = parse_address(env, attester, AddressKind::Either, "attester")?;
         let arg = simulate::encode_arg(env, &attester)?;
         invoke_read_only(env, rpc, &self.contract_id, "get_attester_key", vec![arg])
@@ -452,7 +438,8 @@ impl SASClient {
     ///
     /// Delegates directly to [`soroban_sas_common::schema_uid`] so SDK consumers
     /// never duplicate the derivation logic.
-    pub fn compute_schema_uid(env: &Env, schema: &str, resolver: &Address, revocable: bool) -> UID {
+    pub fn compute_schema_uid(schema: &str, resolver: &Address, revocable: bool) -> UID {
+        let env = &Env::default();
         let schema_str = SorobanString::from_str(env, schema);
         soroban_sas_common::schema_uid(env, &schema_str, resolver, revocable)
     }
@@ -482,8 +469,8 @@ impl SASClient {
                 "RPC client is required on SASClient; configure it via with_rpc(...)".to_string(),
             )
         })?;
-        let env = self.env.clone().unwrap_or_default();
-        self.get_schema(&env, rpc, registry_id, schema_uid)
+        let env = Env::default();
+        self.get_schema(rpc, registry_id, schema_uid)
     }
 
     /// Fetches a schema record by its raw definition from the configured
@@ -515,8 +502,8 @@ impl SASClient {
                 "RPC client is required on SASClient; configure it via with_rpc(...)".to_string(),
             )
         })?;
-        let env = self.env.clone().unwrap_or_default();
-        self.get_schema_by_content(&env, rpc, registry_id, schema, resolver, revocable)
+        let env = Env::default();
+        self.get_schema_by_content(rpc, registry_id, schema, resolver, revocable)
     }
 
     /// Fetches the full `Attestation` record for `uid` via the
@@ -537,11 +524,11 @@ impl SASClient {
     /// enum and for the rent-cost in `restorePreamble`.
     pub fn get_attestation(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         uid: &[u8; 32],
     ) -> Result<Option<Attestation>, SdkError> {
-        match self.fetch_attestation(env, rpc, uid)? {
+        let env = &Env::default();
+        match self.fetch_attestation(rpc, uid)? {
             AttestationResult::Live(att) => Ok(Some(att)),
             AttestationResult::NotFound => Ok(None),
             AttestationResult::Archived(info) => {
@@ -566,10 +553,10 @@ impl SASClient {
     /// budget a `restoreFootprint` operation before retrying.
     pub fn fetch_attestation(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         uid: &[u8; 32],
     ) -> Result<AttestationResult, SdkError> {
+        let env = &Env::default();
         let uid_val = UID(BytesN::from_array(env, uid));
         let arg = simulate::encode_arg(env, &uid_val)?;
         let tx_xdr = simulate::build_simulate_transaction_xdr(
@@ -632,8 +619,8 @@ impl SASClient {
                 "RPC client is required on SASClient; configure it via with_rpc(...)".to_string(),
             )
         })?;
-        let env = self.env.clone().unwrap_or_default();
-        self.fetch_attestation(&env, rpc, uid)
+        let env = Env::default();
+        self.fetch_attestation(rpc, uid)
     }
 
     /// Restores an archived attestation so it can be queried again.
@@ -668,8 +655,8 @@ impl SASClient {
                 "network passphrase is required on SASClient; configure it via with_network_passphrase(...)".to_string(),
             )
         })?;
-        let env = self.env.clone().unwrap_or_default();
-        self.restore_attestation_with_signer(&env, rpc, network_passphrase, secret_seed, uid)
+        let env = Env::default();
+        self.restore_attestation_with_signer(rpc, network_passphrase, secret_seed, uid)
     }
 
     /// Restores an archived attestation using an explicit signer, network passphrase, and RPC client.
@@ -680,13 +667,13 @@ impl SASClient {
     /// Returns [`SdkError::InvalidInput`] if the entry is not currently archived.
     pub fn restore_attestation_with_signer(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
         uid: [u8; 32],
     ) -> Result<GetTransactionResult, SdkError> {
-        let status = self.fetch_attestation(env, rpc, &uid)?;
+        let env = &Env::default();
+        let status = self.fetch_attestation(rpc, &uid)?;
         let info = match status {
             AttestationResult::Archived(info) => info,
             AttestationResult::Live(_) | AttestationResult::NotFound => {
@@ -720,7 +707,6 @@ impl SASClient {
         let Some(manager) = self.sequence_manager.as_deref() else {
             let next_seq = account::fetch_sequence_number(rpc, &public_key)? + 1;
             let signed = build_signed_restore_at_sequence(
-                env,
                 rpc,
                 network_passphrase,
                 secret_seed,
@@ -735,7 +721,6 @@ impl SASClient {
         for attempt in 0..2u8 {
             let reservation = manager.reserve(rpc, &public_key)?;
             let signed = build_signed_restore_at_sequence(
-                env,
                 rpc,
                 network_passphrase,
                 secret_seed,
@@ -770,10 +755,10 @@ impl SASClient {
     /// TTL-renewing, archived-aware path.
     pub fn get_attestation_ledger(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         uid: &[u8; 32],
     ) -> Result<Option<Attestation>, SdkError> {
+        let env = &Env::default();
         let contract = stellar_strkey::Contract::from_string(&self.contract_id).map_err(|e| {
             SdkError::DecodingError(format!("invalid contract id {}: {e:?}", self.contract_id))
         })?;
@@ -800,7 +785,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn register_schema(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
@@ -809,6 +793,7 @@ impl SASClient {
         resolver: &str,
         revocable: bool,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let owner_public_key = signature::derive_public_key(secret_seed);
         let owner_strkey = stellar_strkey::ed25519::PublicKey(owner_public_key).to_string();
         let owner = Address::from_string(&SorobanString::from_str(env, &owner_strkey));
@@ -826,7 +811,6 @@ impl SASClient {
             simulate::encode_arg(env, &revocable)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -843,7 +827,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn register_schema_dry_run(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         secret_seed: &[u8; 32],
         registry_contract_id: &str,
@@ -851,6 +834,7 @@ impl SASClient {
         resolver: &str,
         revocable: bool,
     ) -> Result<DryRunResult, SdkError> {
+        let env = &Env::default();
         let owner_public_key = signature::derive_public_key(secret_seed);
         let owner_strkey = stellar_strkey::ed25519::PublicKey(owner_public_key).to_string();
         let owner = Address::from_string(&SorobanString::from_str(env, &owner_strkey));
@@ -877,7 +861,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn register_schema_with_fee_policy(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
@@ -887,6 +870,7 @@ impl SASClient {
         revocable: bool,
         fee_policy: &FeePolicy,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let owner_public_key = signature::derive_public_key(secret_seed);
         let owner_strkey = stellar_strkey::ed25519::PublicKey(owner_public_key).to_string();
         let owner = Address::from_string(&SorobanString::from_str(env, &owner_strkey));
@@ -900,7 +884,6 @@ impl SASClient {
             simulate::encode_arg(env, &revocable)?,
         ];
         invoke_write_with_fee_policy(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -921,7 +904,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn register_schema_with_value(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
@@ -932,6 +914,7 @@ impl SASClient {
         token: &str,
         value: i128,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let owner_public_key = signature::derive_public_key(secret_seed);
         let owner_strkey = stellar_strkey::ed25519::PublicKey(owner_public_key).to_string();
         let owner = Address::from_string(&SorobanString::from_str(env, &owner_strkey));
@@ -948,7 +931,6 @@ impl SASClient {
             simulate::encode_arg(env, &value)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -963,7 +945,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn register_schema_with_value_dry_run(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         secret_seed: &[u8; 32],
         registry_contract_id: &str,
@@ -973,6 +954,7 @@ impl SASClient {
         token: &str,
         value: i128,
     ) -> Result<DryRunResult, SdkError> {
+        let env = &Env::default();
         let owner_public_key = signature::derive_public_key(secret_seed);
         let owner_strkey = stellar_strkey::ed25519::PublicKey(owner_public_key).to_string();
         let owner = Address::from_string(&SorobanString::from_str(env, &owner_strkey));
@@ -1003,7 +985,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn set_schema_fee(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         admin_secret_seed: &[u8; 32],
@@ -1011,13 +992,13 @@ impl SASClient {
         token: &str,
         amount: i128,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let token = parse_address(env, token, AddressKind::Contract, "token")?;
         let args = vec![
             simulate::encode_arg(env, &token)?,
             simulate::encode_arg(env, &amount)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             admin_secret_seed,
@@ -1032,13 +1013,13 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn set_schema_fee_dry_run(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         admin_secret_seed: &[u8; 32],
         registry_contract_id: &str,
         token: &str,
         amount: i128,
     ) -> Result<DryRunResult, SdkError> {
+        let env = &Env::default();
         let token = parse_address(env, token, AddressKind::Contract, "token")?;
         let args = vec![
             simulate::encode_arg(env, &token)?,
@@ -1054,14 +1035,13 @@ impl SASClient {
     /// admin.
     pub fn clear_schema_fee(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         admin_secret_seed: &[u8; 32],
         registry_contract_id: &str,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             admin_secret_seed,
@@ -1088,17 +1068,16 @@ impl SASClient {
     /// account to be the registry's admin.
     pub fn set_schema_treasury(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         admin_secret_seed: &[u8; 32],
         registry_contract_id: &str,
         treasury: &str,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let treasury = parse_address(env, treasury, AddressKind::Either, "treasury")?;
         let args = vec![simulate::encode_arg(env, &treasury)?];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             admin_secret_seed,
@@ -1112,12 +1091,12 @@ impl SASClient {
     /// simulates the call (issue #329's `--dry-run`).
     pub fn set_schema_treasury_dry_run(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         admin_secret_seed: &[u8; 32],
         registry_contract_id: &str,
         treasury: &str,
     ) -> Result<DryRunResult, SdkError> {
+        let env = &Env::default();
         let treasury = parse_address(env, treasury, AddressKind::Either, "treasury")?;
         let args = vec![simulate::encode_arg(env, &treasury)?];
         let public_key = signature::derive_public_key(admin_secret_seed);
@@ -1136,13 +1115,13 @@ impl SASClient {
     /// so a meaningless withdrawal never costs a simulation fee.
     pub fn withdraw_schema_fees(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         admin_secret_seed: &[u8; 32],
         registry_contract_id: &str,
         amount: i128,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         if amount <= 0 {
             return Err(SdkError::InvalidInput(
                 "withdraw amount must be greater than 0".to_string(),
@@ -1150,7 +1129,6 @@ impl SASClient {
         }
         let args = vec![simulate::encode_arg(env, &amount)?];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             admin_secret_seed,
@@ -1164,12 +1142,12 @@ impl SASClient {
     /// simulates the call (issue #329's `--dry-run`).
     pub fn withdraw_schema_fees_dry_run(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         admin_secret_seed: &[u8; 32],
         registry_contract_id: &str,
         amount: i128,
     ) -> Result<DryRunResult, SdkError> {
+        let env = &Env::default();
         if amount <= 0 {
             return Err(SdkError::InvalidInput(
                 "withdraw amount must be greater than 0".to_string(),
@@ -1190,20 +1168,20 @@ impl SASClient {
     /// requires, or `None` when registration is fee-free.
     pub fn get_schema_fee(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         registry_contract_id: &str,
     ) -> Result<Option<(Address, i128)>, SdkError> {
+        let env = &Env::default();
         invoke_read_only(env, rpc, registry_contract_id, "get_fee", vec![])
     }
 
     /// Reads the registry's configured treasury address, or `None` if unset.
     pub fn get_schema_treasury(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         registry_contract_id: &str,
     ) -> Result<Option<Address>, SdkError> {
+        let env = &Env::default();
         invoke_read_only(env, rpc, registry_contract_id, "get_treasury", vec![])
     }
 
@@ -1214,7 +1192,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn add_delegate(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         owner_secret_seed: &[u8; 32],
@@ -1222,13 +1199,13 @@ impl SASClient {
         schema_uid: &UID,
         delegate: &str,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let delegate_addr = parse_address(env, delegate, AddressKind::Either, "delegate")?;
         let args = vec![
             simulate::encode_arg(env, schema_uid)?,
             simulate::encode_arg(env, &delegate_addr)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             owner_secret_seed,
@@ -1245,7 +1222,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn remove_delegate(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         owner_secret_seed: &[u8; 32],
@@ -1253,13 +1229,13 @@ impl SASClient {
         schema_uid: &UID,
         delegate: &str,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let delegate_addr = parse_address(env, delegate, AddressKind::Either, "delegate")?;
         let args = vec![
             simulate::encode_arg(env, schema_uid)?,
             simulate::encode_arg(env, &delegate_addr)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             owner_secret_seed,
@@ -1274,7 +1250,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn transfer_schema_ownership(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         owner_secret_seed: &[u8; 32],
@@ -1282,13 +1257,13 @@ impl SASClient {
         schema_uid: &UID,
         new_owner: &str,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let new_owner_addr = parse_address(env, new_owner, AddressKind::Either, "new_owner")?;
         let args = vec![
             simulate::encode_arg(env, schema_uid)?,
             simulate::encode_arg(env, &new_owner_addr)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             owner_secret_seed,
@@ -1301,12 +1276,12 @@ impl SASClient {
     /// Checks whether `delegate` is currently an authorized delegate for `schema_uid`.
     pub fn is_delegate(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         registry_contract_id: &str,
         schema_uid: &UID,
         delegate: &str,
     ) -> Result<bool, SdkError> {
+        let env = &Env::default();
         let delegate_addr = parse_address(env, delegate, AddressKind::Either, "delegate")?;
         let args = vec![
             simulate::encode_arg(env, schema_uid)?,
@@ -1318,12 +1293,12 @@ impl SASClient {
     /// Checks whether `attester` is authorized to issue attestations under `schema_uid`.
     pub fn is_authorized(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         registry_contract_id: &str,
         schema_uid: &UID,
         attester: &str,
     ) -> Result<bool, SdkError> {
+        let env = &Env::default();
         let attester_addr = parse_address(env, attester, AddressKind::Either, "attester")?;
         let args = vec![
             simulate::encode_arg(env, schema_uid)?,
@@ -1344,16 +1319,15 @@ impl SASClient {
     /// does not build.
     pub fn attest(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
         attestation: Attestation,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         ensure_attester_matches_secret(env, secret_seed, &attestation)?;
         let arg = simulate::encode_arg(env, &attestation)?;
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1367,17 +1341,16 @@ impl SASClient {
     /// a safety margin or caps the total fee.
     pub fn attest_with_fee_policy(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
         attestation: Attestation,
         fee_policy: &FeePolicy,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         ensure_attester_matches_secret(env, secret_seed, &attestation)?;
         let arg = simulate::encode_arg(env, &attestation)?;
         invoke_write_with_fee_policy(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1397,7 +1370,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn attest_with_value(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
@@ -1405,6 +1377,7 @@ impl SASClient {
         token: &str,
         value: i128,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         ensure_attester_matches_secret(env, secret_seed, &attestation)?;
         let token_address = parse_address(env, token, AddressKind::Contract, "token")?;
         let args = vec![
@@ -1413,7 +1386,6 @@ impl SASClient {
             simulate::encode_arg(env, &value)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1428,14 +1400,13 @@ impl SASClient {
     /// submits it, and polls until it settles.
     pub fn multi_attest(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
         attestations: Vec<Attestation>,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1448,15 +1419,14 @@ impl SASClient {
     /// Like [`multi_attest`](Self::multi_attest) but allows a [`FeePolicy`].
     pub fn multi_attest_with_fee_policy(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
         attestations: Vec<Attestation>,
         fee_policy: &FeePolicy,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         invoke_write_with_fee_policy(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1471,16 +1441,15 @@ impl SASClient {
     /// Requires `secret_seed`'s account to be the attestation's attester.
     pub fn revoke(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
         uid: &[u8; 32],
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let uid = UID(BytesN::from_array(env, uid));
         let arg = simulate::encode_arg(env, &uid)?;
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1493,17 +1462,16 @@ impl SASClient {
     /// Like [`revoke`](Self::revoke) but allows a [`FeePolicy`].
     pub fn revoke_with_fee_policy(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
         uid: &[u8; 32],
         fee_policy: &FeePolicy,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let uid = UID(BytesN::from_array(env, uid));
         let arg = simulate::encode_arg(env, &uid)?;
         invoke_write_with_fee_policy(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1519,14 +1487,13 @@ impl SASClient {
     /// and polls until it settles.
     pub fn multi_revoke(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
         uids: &[&[u8; 32]],
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1539,15 +1506,14 @@ impl SASClient {
     /// Like [`multi_revoke`](Self::multi_revoke) but allows a [`FeePolicy`].
     pub fn multi_revoke_with_fee_policy(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
         uids: &[&[u8; 32]],
         fee_policy: &FeePolicy,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         invoke_write_with_fee_policy(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1570,7 +1536,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn attest_by_delegation(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         relayer_secret_seed: &[u8; 32],
@@ -1579,6 +1544,7 @@ impl SASClient {
         signature: &[u8; 64],
         public_key: &[u8; 32],
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let signature = BytesN::from_array(env, signature);
         let public_key = BytesN::from_array(env, public_key);
         let args = vec![
@@ -1588,7 +1554,6 @@ impl SASClient {
             simulate::encode_arg(env, &public_key)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             relayer_secret_seed,
@@ -1603,7 +1568,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn attest_by_delegation_with_fee_policy(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         relayer_secret_seed: &[u8; 32],
@@ -1613,6 +1577,7 @@ impl SASClient {
         public_key: &[u8; 32],
         fee_policy: &FeePolicy,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let signature = BytesN::from_array(env, signature);
         let public_key = BytesN::from_array(env, public_key);
         let args = vec![
@@ -1622,7 +1587,6 @@ impl SASClient {
             simulate::encode_arg(env, &public_key)?,
         ];
         invoke_write_with_fee_policy(
-            env,
             rpc,
             network_passphrase,
             relayer_secret_seed,
@@ -1638,7 +1602,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn revoke_by_delegation(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         relayer_secret_seed: &[u8; 32],
@@ -1647,6 +1610,7 @@ impl SASClient {
         signature: &[u8; 64],
         public_key: &[u8; 32],
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let uid = UID(BytesN::from_array(env, uid));
         let signature = BytesN::from_array(env, signature);
         let public_key = BytesN::from_array(env, public_key);
@@ -1657,7 +1621,6 @@ impl SASClient {
             simulate::encode_arg(env, &public_key)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             relayer_secret_seed,
@@ -1672,7 +1635,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn revoke_by_delegation_with_fee_policy(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         relayer_secret_seed: &[u8; 32],
@@ -1682,6 +1644,7 @@ impl SASClient {
         public_key: &[u8; 32],
         fee_policy: &FeePolicy,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         let uid = UID(BytesN::from_array(env, uid));
         let signature = BytesN::from_array(env, signature);
         let public_key = BytesN::from_array(env, public_key);
@@ -1692,7 +1655,6 @@ impl SASClient {
             simulate::encode_arg(env, &public_key)?,
         ];
         invoke_write_with_fee_policy(
-            env,
             rpc,
             network_passphrase,
             relayer_secret_seed,
@@ -1715,7 +1677,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn multi_attest_by_delegation(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         relayer_secret_seed: &[u8; 32],
@@ -1724,8 +1685,8 @@ impl SASClient {
         signatures: &[[u8; 64]],
         public_keys: &[[u8; 32]],
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             relayer_secret_seed,
@@ -1750,7 +1711,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn multi_revoke_by_delegation(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         relayer_secret_seed: &[u8; 32],
@@ -1759,8 +1719,8 @@ impl SASClient {
         signatures: &[[u8; 64]],
         public_keys: &[[u8; 32]],
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             relayer_secret_seed,
@@ -1781,13 +1741,13 @@ impl SASClient {
     /// (the contract itself enforces the latter matches the former).
     pub fn replace_attestation(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
         old_uid: &[u8; 32],
         new_data: Attestation,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         ensure_attester_matches_secret(env, secret_seed, &new_data)?;
         let old_uid = UID(BytesN::from_array(env, old_uid));
         let args = vec![
@@ -1795,7 +1755,6 @@ impl SASClient {
             simulate::encode_arg(env, &new_data)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1810,7 +1769,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn replace_attestation_with_fee_policy(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
@@ -1818,6 +1776,7 @@ impl SASClient {
         new_data: Attestation,
         fee_policy: &FeePolicy,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         ensure_attester_matches_secret(env, secret_seed, &new_data)?;
         let old_uid = UID(BytesN::from_array(env, old_uid));
         let args = vec![
@@ -1825,7 +1784,6 @@ impl SASClient {
             simulate::encode_arg(env, &new_data)?,
         ];
         invoke_write_with_fee_policy(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1841,15 +1799,15 @@ impl SASClient {
     /// Requires `secret_seed`'s account to be the attestation's attester.
     pub fn renew_attestation(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
         uid: &[u8; 32],
         new_expiration_time: u64,
     ) -> Result<GetTransactionResult, SdkError> {
+        let env = &Env::default();
         // Verify the secret seed matches the attester by fetching the attestation first
-        let attestation = self.get_attestation(env, rpc, uid)?;
+        let attestation = self.get_attestation(rpc, uid)?;
         if let Some(att) = attestation {
             ensure_attester_matches_secret(env, secret_seed, &att)?;
         } else {
@@ -1861,7 +1819,6 @@ impl SASClient {
             simulate::encode_arg(env, &new_expiration_time)?,
         ];
         self.submit_write(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1876,7 +1833,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     pub fn renew_attestation_with_fee_policy(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
@@ -1884,7 +1840,8 @@ impl SASClient {
         new_expiration_time: u64,
         fee_policy: &FeePolicy,
     ) -> Result<GetTransactionResult, SdkError> {
-        let attestation = self.get_attestation(env, rpc, uid)?;
+        let env = &Env::default();
+        let attestation = self.get_attestation(rpc, uid)?;
         if let Some(att) = attestation {
             ensure_attester_matches_secret(env, secret_seed, &att)?;
         } else {
@@ -1896,7 +1853,6 @@ impl SASClient {
             simulate::encode_arg(env, &new_expiration_time)?,
         ];
         invoke_write_with_fee_policy(
-            env,
             rpc,
             network_passphrase,
             secret_seed,
@@ -1973,6 +1929,7 @@ fn encode_public_key_vec_arg(env: &Env, public_keys: &[[u8; 32]]) -> Result<ScVa
 }
 
 /// Client for the Indexer contract's read-only attestation lookups.
+#[derive(Clone)]
 pub struct IndexerClient {
     /// The Indexer contract's Soroban contract ID.
     pub contract_id: String,
@@ -1988,10 +1945,10 @@ impl IndexerClient {
     /// `simulateTransaction` — a pure read, same as `SASClient::get_schema`.
     pub fn get_attestations_by_recipient(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         recipient: &str,
     ) -> Result<soroban_sdk::Vec<UID>, SdkError> {
+        let env = &Env::default();
         let recipient = parse_address(env, recipient, AddressKind::Either, "recipient")?;
         let arg = simulate::encode_arg(env, &recipient)?;
         invoke_read_only(
@@ -2007,10 +1964,10 @@ impl IndexerClient {
     /// `simulateTransaction`.
     pub fn get_attestations_by_schema(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         schema_uid: &[u8; 32],
     ) -> Result<soroban_sdk::Vec<UID>, SdkError> {
+        let env = &Env::default();
         let schema_uid = UID(BytesN::from_array(env, schema_uid));
         let arg = simulate::encode_arg(env, &schema_uid)?;
         invoke_read_only(
@@ -2027,10 +1984,10 @@ impl IndexerClient {
     /// `get_attestations_by_recipient`/`get_attestations_by_schema`.
     pub fn get_attestations_by_attester(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         attester: &str,
     ) -> Result<soroban_sdk::Vec<UID>, SdkError> {
+        let env = &Env::default();
         let attester = parse_address(env, attester, AddressKind::Either, "attester")?;
         let arg = simulate::encode_arg(env, &attester)?;
         invoke_read_only(
@@ -2052,12 +2009,12 @@ impl IndexerClient {
     /// with [`IndexerClient::get_count_by_recipient`] for totals.
     pub fn get_attestations_by_recipient_paginated(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         recipient: &str,
         cursor: u32,
         limit: u32,
     ) -> Result<soroban_sdk::Vec<UID>, SdkError> {
+        let env = &Env::default();
         let recipient = parse_address(env, recipient, AddressKind::Either, "recipient")?;
         let args = vec![
             simulate::encode_arg(env, &recipient)?,
@@ -2078,12 +2035,12 @@ impl IndexerClient {
     /// [`IndexerClient::get_attestations_by_recipient_paginated`] (#306).
     pub fn get_attestations_by_schema_paginated(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         schema_uid: &[u8; 32],
         cursor: u32,
         limit: u32,
     ) -> Result<soroban_sdk::Vec<UID>, SdkError> {
+        let env = &Env::default();
         let schema_uid = UID(BytesN::from_array(env, schema_uid));
         let args = vec![
             simulate::encode_arg(env, &schema_uid)?,
@@ -2104,12 +2061,12 @@ impl IndexerClient {
     /// [`IndexerClient::get_attestations_by_recipient_paginated`] (#306).
     pub fn get_attestations_by_attester_paginated(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         attester: &str,
         cursor: u32,
         limit: u32,
     ) -> Result<soroban_sdk::Vec<UID>, SdkError> {
+        let env = &Env::default();
         let attester = parse_address(env, attester, AddressKind::Either, "attester")?;
         let args = vec![
             simulate::encode_arg(env, &attester)?,
@@ -2131,11 +2088,11 @@ impl IndexerClient {
     /// auditable history (active + revoked + replaced) is returned.
     pub fn get_attestations_by_recipient_filtered(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         recipient: &str,
         include_revoked: bool,
     ) -> Result<soroban_sdk::Vec<UID>, SdkError> {
+        let env = &Env::default();
         let recipient = parse_address(env, recipient, AddressKind::Either, "recipient")?;
         let inc = include_revoked;
         let args = vec![
@@ -2148,11 +2105,11 @@ impl IndexerClient {
     /// Filtered schema query, same `include_revoked` semantics as above.
     pub fn get_attestations_by_schema_filtered(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         schema_uid: &[u8; 32],
         include_revoked: bool,
     ) -> Result<soroban_sdk::Vec<UID>, SdkError> {
+        let env = &Env::default();
         let schema_uid = UID(BytesN::from_array(env, schema_uid));
         let args = vec![
             simulate::encode_arg(env, &schema_uid)?,
@@ -2164,11 +2121,11 @@ impl IndexerClient {
     /// Filtered attester query, same `include_revoked` semantics.
     pub fn get_attestations_by_attester_filtered(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         attester: &str,
         include_revoked: bool,
     ) -> Result<soroban_sdk::Vec<UID>, SdkError> {
+        let env = &Env::default();
         let attester = parse_address(env, attester, AddressKind::Either, "attester")?;
         let args = vec![
             simulate::encode_arg(env, &attester)?,
@@ -2181,21 +2138,21 @@ impl IndexerClient {
     /// off). Retained history is still queryable via `*_filtered(_, true)`.
     pub fn get_active_attestations_by_recipient(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         recipient: &str,
     ) -> Result<soroban_sdk::Vec<UID>, SdkError> {
-        self.get_attestations_by_recipient_filtered(env, rpc, recipient, false)
+        let env = &Env::default();
+        self.get_attestations_by_recipient_filtered(rpc, recipient, false)
     }
 
     /// Returns the indexer's `get_attestation_status` for `uid`, if the
     /// UID was ever indexed.
     pub fn get_attestation_status(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         uid: &[u8; 32],
     ) -> Result<Option<i32>, SdkError> {
+        let env = &Env::default();
         // `IndexStatus` is an `#[contracttype]` enum encoded as an `i32`
         // on the wire in soroban-sdk 20. Decode as i32 for SDK consumers
         // without pulling the contracttype into the SDK crate.
@@ -2213,10 +2170,10 @@ impl IndexerClient {
     /// Forward replacement link: `old_uid` -> `Some(new_uid)` if replaced.
     pub fn get_replacement(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         old_uid: &[u8; 32],
     ) -> Result<Option<UID>, SdkError> {
+        let env = &Env::default();
         let uid = UID(BytesN::from_array(env, old_uid));
         let arg = simulate::encode_arg(env, &uid)?;
         invoke_read_only(env, rpc, &self.contract_id, "get_replacement", vec![arg])
@@ -2229,10 +2186,10 @@ impl IndexerClient {
     /// `recipient` just to learn how many there are (#220).
     pub fn get_count_by_recipient(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         recipient: &str,
     ) -> Result<u32, SdkError> {
+        let env = &Env::default();
         let recipient = parse_address(env, recipient, AddressKind::Either, "recipient")?;
         let arg = simulate::encode_arg(env, &recipient)?;
         invoke_read_only(
@@ -2249,10 +2206,10 @@ impl IndexerClient {
     /// for semantics.
     pub fn get_count_by_schema(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         schema_uid: &[u8; 32],
     ) -> Result<u32, SdkError> {
+        let env = &Env::default();
         let schema_uid = UID(BytesN::from_array(env, schema_uid));
         let arg = simulate::encode_arg(env, &schema_uid)?;
         invoke_read_only(
@@ -2267,12 +2224,8 @@ impl IndexerClient {
     /// Calls `Indexer::get_count_by_attester(address)` via
     /// `simulateTransaction`. See [`IndexerClient::get_count_by_recipient`]
     /// for semantics.
-    pub fn get_count_by_attester(
-        &self,
-        env: &Env,
-        rpc: &RpcClient,
-        attester: &str,
-    ) -> Result<u32, SdkError> {
+    pub fn get_count_by_attester(&self, rpc: &RpcClient, attester: &str) -> Result<u32, SdkError> {
+        let env = &Env::default();
         let attester = parse_address(env, attester, AddressKind::Either, "attester")?;
         let arg = simulate::encode_arg(env, &attester)?;
         invoke_read_only(
@@ -2378,7 +2331,6 @@ where
 /// reserved sequence rather than a value fetched fresh from RPC.
 #[allow(clippy::too_many_arguments)]
 fn build_signed_write(
-    env: &Env,
     rpc: &RpcClient,
     network_passphrase: &str,
     secret_seed: &[u8; 32],
@@ -2389,7 +2341,6 @@ fn build_signed_write(
     next_seq: i64,
 ) -> Result<String, SdkError> {
     build_signed_write_at_sequence(
-        env,
         rpc,
         network_passphrase,
         secret_seed,
@@ -2409,7 +2360,6 @@ fn build_signed_write(
 /// Returns the signed envelope XDR (base64) — not yet submitted.
 #[allow(clippy::too_many_arguments)]
 fn build_signed_write_at_sequence(
-    env: &Env,
     rpc: &RpcClient,
     network_passphrase: &str,
     secret_seed: &[u8; 32],
@@ -2494,18 +2444,14 @@ fn build_signed_write_at_sequence(
 
     simulate::validate_simulated_transaction(&final_tx, contract_id, function_name, args)?;
 
-    let network_id: [u8; 32] = env
-        .crypto()
-        .sha256(&Bytes::from_slice(env, network_passphrase.as_bytes()))
-        .to_array();
-    simulate::sign_transaction(env, &network_id, final_tx, secret_seed)
+    let network_id = simulate::network_id(network_passphrase);
+    simulate::sign_transaction_with_network_id(&network_id, final_tx, secret_seed)
 }
 
 /// Builds, simulates (to obtain the final fee and footprint), and signs a
 /// `RestoreFootprintOp` transaction at the given `public_key`/`next_seq`.
 #[allow(clippy::too_many_arguments)]
 fn build_signed_restore_at_sequence(
-    env: &Env,
     rpc: &RpcClient,
     network_passphrase: &str,
     secret_seed: &[u8; 32],
@@ -2573,11 +2519,8 @@ fn build_signed_restore_at_sequence(
         ext: TransactionExt::V1(final_soroban_data),
     };
 
-    let network_id: [u8; 32] = env
-        .crypto()
-        .sha256(&Bytes::from_slice(env, network_passphrase.as_bytes()))
-        .to_array();
-    simulate::sign_transaction(env, &network_id, final_tx, secret_seed)
+    let network_id = simulate::network_id(network_passphrase);
+    simulate::sign_transaction_with_network_id(&network_id, final_tx, secret_seed)
 }
 
 /// Like [`invoke_write`] but allows the caller to specify a
@@ -2586,7 +2529,6 @@ fn build_signed_restore_at_sequence(
 /// the variant that takes one already reserved by a [`SequenceManager`].
 #[allow(clippy::too_many_arguments)]
 fn invoke_write_with_fee_policy(
-    env: &Env,
     rpc: &RpcClient,
     network_passphrase: &str,
     secret_seed: &[u8; 32],
@@ -2598,7 +2540,6 @@ fn invoke_write_with_fee_policy(
     let public_key = signature::derive_public_key(secret_seed);
     let next_seq = account::fetch_sequence_number(rpc, &public_key)? + 1;
     let signed = build_signed_write_at_sequence(
-        env,
         rpc,
         network_passphrase,
         secret_seed,
@@ -2636,7 +2577,6 @@ impl SASClient {
     #[allow(clippy::too_many_arguments)]
     fn submit_write(
         &self,
-        env: &Env,
         rpc: &RpcClient,
         network_passphrase: &str,
         secret_seed: &[u8; 32],
@@ -2652,7 +2592,6 @@ impl SASClient {
             // RPC and submit once.
             let next_seq = account::fetch_sequence_number(rpc, &public_key)? + 1;
             let signed = build_signed_write(
-                env,
                 rpc,
                 network_passphrase,
                 secret_seed,
@@ -2671,7 +2610,6 @@ impl SASClient {
         for attempt in 0..2u8 {
             let reservation = manager.reserve(rpc, &public_key)?;
             let signed = build_signed_write(
-                env,
                 rpc,
                 network_passphrase,
                 secret_seed,
@@ -3431,8 +3369,7 @@ mod tests {
         let rpc = RpcClient::new(url);
         let client = SASClient::new(client_id.clone())
             .with_rpc(rpc)
-            .with_registry(registry_id.clone())
-            .with_env(env.clone());
+            .with_registry(registry_id.clone());
 
         let fetched = client.fetch_schema(&uid.0.to_array()).unwrap();
         assert_eq!(fetched, Some(record));
@@ -3450,8 +3387,7 @@ mod tests {
         let none_rpc = RpcClient::new(none_url);
         let none_client = SASClient::new(client_id)
             .with_rpc(none_rpc)
-            .with_registry(registry_id)
-            .with_env(env);
+            .with_registry(registry_id);
 
         let missing = none_client.fetch_schema(&[99u8; 32]).unwrap();
         assert_eq!(missing, None);
@@ -3498,8 +3434,7 @@ mod tests {
         let rpc = RpcClient::new(url);
         let client = SASClient::new(client_id.clone())
             .with_rpc(rpc)
-            .with_registry(registry_id.clone())
-            .with_env(env.clone());
+            .with_registry(registry_id.clone());
 
         let fetched = client
             .fetch_schema_by_content("score U32", &resolver, true)
@@ -3519,8 +3454,7 @@ mod tests {
         let none_rpc = RpcClient::new(none_url);
         let none_client = SASClient::new(client_id)
             .with_rpc(none_rpc)
-            .with_registry(registry_id)
-            .with_env(env);
+            .with_registry(registry_id);
 
         let missing = none_client
             .fetch_schema_by_content("uint32 score", &resolver, true)
@@ -3566,8 +3500,7 @@ mod tests {
         let client = SASClient::new(contract_id.clone())
             .with_rpc(rpc)
             .with_signing_key([3u8; 32])
-            .with_network_passphrase("Test SDF Network ; September 2015")
-            .with_env(env.clone());
+            .with_network_passphrase("Test SDF Network ; September 2015");
 
         let err = client.restore_attestation([5u8; 32]).unwrap_err();
         assert!(matches!(err, SdkError::InvalidInput(_)));
@@ -3585,8 +3518,7 @@ mod tests {
         let none_client = SASClient::new(contract_id)
             .with_rpc(none_rpc)
             .with_signing_key([3u8; 32])
-            .with_network_passphrase("Test SDF Network ; September 2015")
-            .with_env(env);
+            .with_network_passphrase("Test SDF Network ; September 2015");
 
         let err2 = none_client.restore_attestation([5u8; 32]).unwrap_err();
         assert!(matches!(err2, SdkError::InvalidInput(_)));
@@ -3686,8 +3618,7 @@ mod tests {
         let client = SASClient::new(contract_id)
             .with_rpc(rpc)
             .with_signing_key(seed)
-            .with_network_passphrase("Test SDF Network ; September 2015")
-            .with_env(env);
+            .with_network_passphrase("Test SDF Network ; September 2015");
 
         let res = client.restore_attestation([9u8; 32]).unwrap();
         assert_eq!(res.status, "SUCCESS");

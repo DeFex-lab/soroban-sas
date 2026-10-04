@@ -6,6 +6,7 @@
 
 use std::io::Read;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::errors::SdkError;
@@ -140,6 +141,13 @@ pub const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(10);
 /// ([`DEFAULT_RPC_TIMEOUT`] unless [`RpcClient::with_timeout`] overrides
 /// it), so a slow or unreachable node cannot block the calling thread
 /// indefinitely.
+///
+/// Cloning is cheap: clones share the underlying HTTP agent (and its
+/// connection pool) and the JSON-RPC request-id counter, so requests issued
+/// through any clone still get unique ids. The SDK's `*_async` methods rely
+/// on this to hand a copy of the client to the worker thread that performs
+/// the blocking I/O.
+#[derive(Clone)]
 pub struct RpcClient {
     pub network_url: String,
     /// The effective per-request timeout. Kept alongside `agent` because
@@ -155,8 +163,9 @@ pub struct RpcClient {
     /// it so none can bypass the bound.
     agent: Agent,
     /// Monotonically-increasing JSON-RPC request ID.  Each request gets the
-    /// next value so concurrent callers can correlate responses.
-    next_id: AtomicU32,
+    /// next value so concurrent callers can correlate responses. Shared
+    /// between clones so ids stay unique across them.
+    next_id: Arc<AtomicU32>,
     /// Rate-limit retry policy. Defaults to [`RateLimitPolicy::default`].
     rate_limit_policy: RateLimitPolicy,
 }
@@ -168,7 +177,7 @@ impl RpcClient {
             timeout: DEFAULT_RPC_TIMEOUT,
             max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
             agent: rpc_agent(DEFAULT_RPC_TIMEOUT),
-            next_id: AtomicU32::new(1),
+            next_id: Arc::new(AtomicU32::new(1)),
             rate_limit_policy: RateLimitPolicy::default(),
         }
     }
@@ -1867,5 +1876,71 @@ mod issuance_time_tests {
     fn saturating_math_does_not_panic_at_the_extremes() {
         assert!(resolve_issuance_time(&clock(0), u64::MAX, 300).is_err());
         assert!(resolve_issuance_time(&clock(u64::MAX), 0, 300).is_err());
+    }
+}
+
+impl RpcClient {
+    pub async fn simulate_transaction_async(
+        &self,
+        transaction_xdr: &str,
+    ) -> Result<SimulateTransactionResult, SdkError> {
+        let client = self.clone();
+        let xdr = transaction_xdr.to_string();
+        tokio::task::spawn_blocking(move || client.simulate_transaction(&xdr))
+            .await
+            .map_err(|e| SdkError::RpcError(format!("async task panicked: {}", e)))?
+    }
+
+    pub async fn send_transaction_async(
+        &self,
+        transaction_xdr: &str,
+    ) -> Result<SendTransactionResult, SdkError> {
+        let client = self.clone();
+        let xdr = transaction_xdr.to_string();
+        tokio::task::spawn_blocking(move || client.send_transaction(&xdr))
+            .await
+            .map_err(|e| SdkError::RpcError(format!("async task panicked: {}", e)))?
+    }
+
+    pub async fn get_transaction_async(
+        &self,
+        tx_hash: &str,
+    ) -> Result<GetTransactionResult, SdkError> {
+        let client = self.clone();
+        let hash = tx_hash.to_string();
+        tokio::task::spawn_blocking(move || client.get_transaction(&hash))
+            .await
+            .map_err(|e| SdkError::RpcError(format!("async task panicked: {}", e)))?
+    }
+
+    pub async fn get_ledger_entries_async(
+        &self,
+        keys: Vec<String>,
+    ) -> Result<GetLedgerEntriesResult, SdkError> {
+        let client = self.clone();
+        tokio::task::spawn_blocking(move || client.get_ledger_entries(keys))
+            .await
+            .map_err(|e| SdkError::RpcError(format!("async task panicked: {}", e)))?
+    }
+
+    pub async fn get_latest_ledger_async(&self) -> Result<GetLatestLedgerResult, SdkError> {
+        let client = self.clone();
+        tokio::task::spawn_blocking(move || client.get_latest_ledger())
+            .await
+            .map_err(|e| SdkError::RpcError(format!("async task panicked: {}", e)))?
+    }
+
+    pub async fn get_latest_ledger_clock_async(&self) -> Result<LedgerClock, SdkError> {
+        let client = self.clone();
+        tokio::task::spawn_blocking(move || client.get_latest_ledger_clock())
+            .await
+            .map_err(|e| SdkError::RpcError(format!("async task panicked: {}", e)))?
+    }
+
+    pub async fn fetch_current_ledger_time_async(&self) -> Result<u64, SdkError> {
+        let client = self.clone();
+        tokio::task::spawn_blocking(move || client.fetch_current_ledger_time())
+            .await
+            .map_err(|e| SdkError::RpcError(format!("async task panicked: {}", e)))?
     }
 }
