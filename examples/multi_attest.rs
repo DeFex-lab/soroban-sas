@@ -99,7 +99,7 @@ fn main() {
     let client = SASClient::new(contract_id);
 
     eprintln!("Submitting batch via SAS::multi_attest...");
-    match client.multi_attest(&env, &rpc, &network_passphrase, &seed, attestations) {
+    match client.multi_attest(&rpc, &network_passphrase, &seed, attestations) {
         Ok(result) => {
             eprintln!(
                 "Success! Transaction hash: {}",

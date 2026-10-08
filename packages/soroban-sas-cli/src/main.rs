@@ -1382,7 +1382,7 @@ fn run_sas(
     hardware: Option<hardware::HardwareWallet>,
     no_cache: bool,
 ) -> Result<(), String> {
-    let env = soroban_sdk::Env::default();
+    let _env = soroban_sdk::Env::default();
     match action {
         SasCommands::Get {
             contract_id,
@@ -1393,7 +1393,7 @@ fn run_sas(
                 cache::cached_or(&["sas-get-fee", &rpc_url, &contract_id], no_cache, || {
                     let rpc = soroban_sas_sdk::rpc::RpcClient::new(rpc_url.clone());
                     let client = soroban_sas_sdk::client::SASClient::new(contract_id.clone());
-                    let fee = client.fetch_fee(&env, &rpc).map_err(|e| e.to_string())?;
+                    let fee = client.fetch_fee(&rpc).map_err(|e| e.to_string())?;
                     Ok((fee_to_human(&fee), fee_to_json(&fee)))
                 })?;
             emit_ok(output, || println!("{human_msg}"), json_val)
@@ -1415,14 +1415,14 @@ fn run_sas(
             let client = soroban_sas_sdk::client::SASClient::new(contract_id);
             if dry_run {
                 let result = client
-                    .set_fee_dry_run(&env, &rpc, &seed, &token, amount)
+                    .set_fee_dry_run(&rpc, &seed, &token, amount)
                     .map_err(format_sas_admin_error)?;
                 return print_dry_run_result(result, output);
             }
             let network_passphrase =
                 resolve_network_passphrase(network_passphrase, network.as_deref())?;
             let result = client
-                .set_fee(&env, &rpc, &network_passphrase, &seed, &token, amount)
+                .set_fee(&rpc, &network_passphrase, &seed, &token, amount)
                 .map_err(format_sas_admin_error)?;
             print_sas_fee_admin_result(result, output, Some((&token, amount)))
         }
@@ -1447,7 +1447,7 @@ fn run_sas(
             let network_passphrase =
                 resolve_network_passphrase(network_passphrase, network.as_deref())?;
             let result = client
-                .clear_fee(&env, &rpc, &network_passphrase, &seed)
+                .clear_fee(&rpc, &network_passphrase, &seed)
                 .map_err(format_sas_admin_error)?;
             print_sas_fee_admin_result(result, output, None)
         }
@@ -1573,13 +1573,7 @@ fn submit_bulk_row(
 
     let result = ctx
         .client
-        .attest(
-            ctx.env,
-            ctx.rpc,
-            ctx.network_passphrase,
-            ctx.seed,
-            attestation,
-        )
+        .attest(ctx.rpc, ctx.network_passphrase, ctx.seed, attestation)
         .map_err(|e| e.to_string())?;
 
     if result.status != "SUCCESS" {
@@ -1665,7 +1659,7 @@ fn run_attest(
             let attestation = offchain::parse_attestation(&env, &input)?;
 
             let result = client
-                .attest(&env, &rpc, &network_passphrase, &seed, attestation)
+                .attest(&rpc, &network_passphrase, &seed, attestation)
                 .map_err(|e| e.to_string())?;
 
             if result.status != "SUCCESS" {
@@ -1723,7 +1717,7 @@ fn run_attest(
             validate_expiration_before_submit(&rpc, &env, input.expiration_time)?;
             let client = soroban_sas_sdk::client::SASClient::new(contract_id);
             let result = client
-                .attest(&env, &rpc, &network_passphrase, &seed, attestation)
+                .attest(&rpc, &network_passphrase, &seed, attestation)
                 .map_err(|e| e.to_string())?;
             print_transaction_result(result, output)
         }
@@ -1950,7 +1944,7 @@ fn run_attest(
             let rpc = soroban_sas_sdk::rpc::RpcClient::new(rpc_url);
             let client = soroban_sas_sdk::client::SASClient::new(contract_id);
             let result = client
-                .revoke(&env, &rpc, &network_passphrase, &seed, &uid)
+                .revoke(&rpc, &network_passphrase, &seed, &uid)
                 .map_err(|e| e.to_string())?;
             print_transaction_result(result, output)
         }
@@ -1964,7 +1958,7 @@ fn run_attest(
             let rpc = soroban_sas_sdk::rpc::RpcClient::new(rpc_url);
             let client = soroban_sas_sdk::client::SASClient::new(contract_id);
             let valid = client
-                .verify_attestation(&env, &rpc, &uid)
+                .verify_attestation(&rpc, &uid)
                 .map_err(|e| e.to_string())?;
             emit_ok(
                 output,
@@ -2011,7 +2005,7 @@ fn run_attest(
             validate_expiration_before_submit(&rpc, &env, input.expiration_time)?;
             let client = soroban_sas_sdk::client::SASClient::new(contract_id);
             let result = client
-                .replace_attestation(&env, &rpc, &network_passphrase, &seed, &old_uid, new_data)
+                .replace_attestation(&rpc, &network_passphrase, &seed, &old_uid, new_data)
                 .map_err(|e| e.to_string())?;
             print_transaction_result(result, output)
         }
@@ -2182,7 +2176,7 @@ fn run_query(
     output: OutputFormat,
     network: Option<String>,
 ) -> Result<(), String> {
-    let env = soroban_sdk::Env::default();
+    let _env = soroban_sdk::Env::default();
     match action {
         QueryCommands::ByRecipient {
             address,
@@ -2196,15 +2190,15 @@ fn run_query(
             let client = soroban_sas_sdk::client::IndexerClient::new(contract_id);
             let Some((cursor, limit)) = page else {
                 let uids = client
-                    .get_attestations_by_recipient(&env, &rpc, &address)
+                    .get_attestations_by_recipient(&rpc, &address)
                     .map_err(|e| e.to_string())?;
                 return print_uids(&uids, output);
             };
             let uids = client
-                .get_attestations_by_recipient_paginated(&env, &rpc, &address, cursor, limit)
+                .get_attestations_by_recipient_paginated(&rpc, &address, cursor, limit)
                 .map_err(|e| e.to_string())?;
             let total = client
-                .get_count_by_recipient(&env, &rpc, &address)
+                .get_count_by_recipient(&rpc, &address)
                 .map_err(|e| e.to_string())?;
             print_page(None, &uids, cursor, limit, total, output)
         }
@@ -2220,15 +2214,15 @@ fn run_query(
             let client = soroban_sas_sdk::client::IndexerClient::new(contract_id);
             let Some((cursor, limit)) = page else {
                 let uids = client
-                    .get_attestations_by_attester(&env, &rpc, &address)
+                    .get_attestations_by_attester(&rpc, &address)
                     .map_err(|e| e.to_string())?;
                 return print_attestations_by_attester(&address, &uids, output);
             };
             let uids = client
-                .get_attestations_by_attester_paginated(&env, &rpc, &address, cursor, limit)
+                .get_attestations_by_attester_paginated(&rpc, &address, cursor, limit)
                 .map_err(|e| e.to_string())?;
             let total = client
-                .get_count_by_attester(&env, &rpc, &address)
+                .get_count_by_attester(&rpc, &address)
                 .map_err(|e| e.to_string())?;
             print_page(
                 Some(("attester", &address)),
@@ -2252,15 +2246,15 @@ fn run_query(
             let client = soroban_sas_sdk::client::IndexerClient::new(contract_id);
             let Some((cursor, limit)) = page else {
                 let uids = client
-                    .get_attestations_by_schema(&env, &rpc, &schema_uid)
+                    .get_attestations_by_schema(&rpc, &schema_uid)
                     .map_err(|e| e.to_string())?;
                 return print_uids(&uids, output);
             };
             let uids = client
-                .get_attestations_by_schema_paginated(&env, &rpc, &schema_uid, cursor, limit)
+                .get_attestations_by_schema_paginated(&rpc, &schema_uid, cursor, limit)
                 .map_err(|e| e.to_string())?;
             let total = client
-                .get_count_by_schema(&env, &rpc, &schema_uid)
+                .get_count_by_schema(&rpc, &schema_uid)
                 .map_err(|e| e.to_string())?;
             print_page(None, &uids, cursor, limit, total, output)
         }
@@ -2458,7 +2452,6 @@ fn run_delegate(
             let client = soroban_sas_sdk::client::SASClient::new(signed.contract_id.clone());
             let result = client
                 .attest_by_delegation(
-                    &env,
                     &rpc,
                     &signed.network_passphrase,
                     &relayer_seed,
@@ -2489,7 +2482,6 @@ fn run_delegate(
             let client = soroban_sas_sdk::client::SASClient::new(signed.contract_id.clone());
             let result = client
                 .revoke_by_delegation(
-                    &env,
                     &rpc,
                     &signed.network_passphrase,
                     &relayer_seed,
@@ -2536,7 +2528,6 @@ fn run_schema(
             if dry_run {
                 let result = client
                     .register_schema_dry_run(
-                        &env,
                         &rpc,
                         &seed,
                         &registry_contract_id,
@@ -2552,7 +2543,6 @@ fn run_schema(
             let uid_hex = compute_schema_uid_hex(&env, &schema, &resolver, revocable)?;
             let result = client
                 .register_schema(
-                    &env,
                     &rpc,
                     &network_passphrase,
                     &seed,
@@ -2585,7 +2575,6 @@ fn run_schema(
             let uid_hex = compute_schema_uid_hex(&env, &schema, &resolver, revocable)?;
             let result = client
                 .register_schema(
-                    &env,
                     &rpc,
                     &network_passphrase,
                     &seed,
@@ -2612,7 +2601,7 @@ fn run_schema(
                     let client =
                         soroban_sas_sdk::client::SASClient::new(registry_contract_id.clone());
                     let schema = client
-                        .get_schema(&env, &rpc, &registry_contract_id, &uid_bytes)
+                        .get_schema(&rpc, &registry_contract_id, &uid_bytes)
                         .map_err(|e| e.to_string())?;
                     Ok(match schema {
                         None => (
@@ -2673,7 +2662,6 @@ fn run_schema(
                         soroban_sas_sdk::client::SASClient::new(registry_contract_id.clone());
                     let schema_record = client
                         .get_schema_by_content(
-                            &env,
                             &rpc,
                             &registry_contract_id,
                             &schema,
@@ -2727,7 +2715,6 @@ fn run_schema(
             if dry_run {
                 let result = client
                     .register_schema_with_value_dry_run(
-                        &env,
                         &rpc,
                         &seed,
                         &registry_contract_id,
@@ -2745,7 +2732,6 @@ fn run_schema(
             let uid_hex = compute_schema_uid_hex(&env, &schema, &resolver, revocable)?;
             let result = client
                 .register_schema_with_value(
-                    &env,
                     &rpc,
                     &network_passphrase,
                     &seed,
@@ -2775,14 +2761,7 @@ fn run_schema(
             let client = soroban_sas_sdk::client::SASClient::new(registry_contract_id.clone());
             if dry_run {
                 let result = client
-                    .set_schema_fee_dry_run(
-                        &env,
-                        &rpc,
-                        &seed,
-                        &registry_contract_id,
-                        &token,
-                        amount,
-                    )
+                    .set_schema_fee_dry_run(&rpc, &seed, &registry_contract_id, &token, amount)
                     .map_err(|e| e.to_string())?;
                 return print_dry_run_result(result, output);
             }
@@ -2790,7 +2769,6 @@ fn run_schema(
                 resolve_network_passphrase(network_passphrase, network.as_deref())?;
             let result = client
                 .set_schema_fee(
-                    &env,
                     &rpc,
                     &network_passphrase,
                     &seed,
@@ -2822,13 +2800,7 @@ fn run_schema(
             let network_passphrase =
                 resolve_network_passphrase(network_passphrase, network.as_deref())?;
             let result = client
-                .clear_schema_fee(
-                    &env,
-                    &rpc,
-                    &network_passphrase,
-                    &seed,
-                    &registry_contract_id,
-                )
+                .clear_schema_fee(&rpc, &network_passphrase, &seed, &registry_contract_id)
                 .map_err(|e| e.to_string())?;
             print_transaction_result(result, output)
         }
@@ -2847,13 +2819,7 @@ fn run_schema(
             let client = soroban_sas_sdk::client::SASClient::new(registry_contract_id.clone());
             if dry_run {
                 let result = client
-                    .set_schema_treasury_dry_run(
-                        &env,
-                        &rpc,
-                        &seed,
-                        &registry_contract_id,
-                        &treasury,
-                    )
+                    .set_schema_treasury_dry_run(&rpc, &seed, &registry_contract_id, &treasury)
                     .map_err(|e| e.to_string())?;
                 return print_dry_run_result(result, output);
             }
@@ -2861,7 +2827,6 @@ fn run_schema(
                 resolve_network_passphrase(network_passphrase, network.as_deref())?;
             let result = client
                 .set_schema_treasury(
-                    &env,
                     &rpc,
                     &network_passphrase,
                     &seed,
@@ -2887,7 +2852,7 @@ fn run_schema(
             let client = soroban_sas_sdk::client::SASClient::new(registry_contract_id.clone());
             if dry_run {
                 let result = client
-                    .withdraw_schema_fees_dry_run(&env, &rpc, &seed, &registry_contract_id, amount)
+                    .withdraw_schema_fees_dry_run(&rpc, &seed, &registry_contract_id, amount)
                     .map_err(|e| e.to_string())?;
                 return print_dry_run_result(result, output);
             }
@@ -2895,7 +2860,6 @@ fn run_schema(
                 resolve_network_passphrase(network_passphrase, network.as_deref())?;
             let result = client
                 .withdraw_schema_fees(
-                    &env,
                     &rpc,
                     &network_passphrase,
                     &seed,
@@ -2918,7 +2882,7 @@ fn run_schema(
                     let client =
                         soroban_sas_sdk::client::SASClient::new(registry_contract_id.clone());
                     let fee = client
-                        .get_schema_fee(&env, &rpc, &registry_contract_id)
+                        .get_schema_fee(&rpc, &registry_contract_id)
                         .map_err(|e| e.to_string())?;
                     Ok(match fee {
                         None => (
@@ -2953,7 +2917,7 @@ fn run_schema(
                     let client =
                         soroban_sas_sdk::client::SASClient::new(registry_contract_id.clone());
                     let treasury = client
-                        .get_schema_treasury(&env, &rpc, &registry_contract_id)
+                        .get_schema_treasury(&rpc, &registry_contract_id)
                         .map_err(|e| e.to_string())?;
                     Ok(match treasury {
                         None => (
@@ -3167,14 +3131,14 @@ fn perform_online_verification(
     registry_contract_id: Option<&str>,
     rpc: &soroban_sas_sdk::rpc::RpcClient,
 ) -> Result<OnlineVerificationReport, String> {
-    let env = soroban_sdk::Env::default();
+    let _env = soroban_sdk::Env::default();
     let uid_bytes = parse_uid(&signed.attestation.uid)?;
     let client = soroban_sas_sdk::client::SASClient::new(trusted_contract_id.to_string());
 
     let network_matches_trusted = signed.network_passphrase == trusted_network_passphrase;
     let contract_matches_trusted = signed.contract_id == trusted_contract_id;
 
-    let attestation = client.get_attestation(&env, rpc, &uid_bytes).map_err(|e| {
+    let attestation = client.get_attestation(rpc, &uid_bytes).map_err(|e| {
         format!("online verification failed while fetching the attestation from the trusted contract: {e}")
     })?;
     let (on_chain_found, expired, revoked) = match &attestation {
@@ -3192,7 +3156,7 @@ fn perform_online_verification(
     let schema_status = match registry_contract_id {
         Some(registry_id) => {
             let schema_uid = parse_uid(&signed.attestation.schema_uid)?;
-            match client.get_schema(&env, rpc, registry_id, &schema_uid) {
+            match client.get_schema(rpc, registry_id, &schema_uid) {
                 Ok(Some(_)) => "available",
                 Ok(None) => "not_found",
                 Err(e) => {

@@ -107,7 +107,6 @@ fn main() {
 
     eprintln!("Relaying via SAS::attest_by_delegation...");
     match client.attest_by_delegation(
-        &env,
         &rpc,
         &network_passphrase,
         &relayer_seed,

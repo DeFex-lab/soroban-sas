@@ -477,7 +477,6 @@ fn test_attestation_builder_attestation_is_accepted_by_sas_client_attest() {
     let client = crate::client::SASClient::new(contract_id);
     let rpc = crate::rpc::RpcClient::new(url).with_timeout(Duration::from_secs(5));
     let result = client.attest(
-        &env,
         &rpc,
         "Test SDF Network ; September 2015",
         &secret_seed,
@@ -641,7 +640,6 @@ fn sas_fee_admin_writes_encode_and_settle_sequentially() {
 
     let set_result = client
         .set_fee(
-            &env,
             &rpc,
             "Test SDF Network ; September 2015",
             &seed,
@@ -650,7 +648,7 @@ fn sas_fee_admin_writes_encode_and_settle_sequentially() {
         )
         .unwrap();
     let clear_result = client
-        .clear_fee(&env, &rpc, "Test SDF Network ; September 2015", &seed)
+        .clear_fee(&rpc, "Test SDF Network ; September 2015", &seed)
         .unwrap();
     assert_eq!(set_result.status, "SUCCESS");
     assert_eq!(clear_result.status, "SUCCESS");
@@ -714,13 +712,13 @@ fn sas_fee_admin_writes_encode_and_settle_sequentially() {
 
 #[test]
 fn sas_set_fee_rejects_invalid_amount_before_rpc() {
-    let env = Env::default();
+    let _env = Env::default();
     let client = crate::client::SASClient::new(stellar_strkey::Contract([24u8; 32]).to_string());
     let rpc = crate::rpc::RpcClient::new("http://127.0.0.1:1".to_string());
     let token = stellar_strkey::Contract([25u8; 32]).to_string();
     for amount in [0, -1] {
         let error = client
-            .set_fee(&env, &rpc, "network", &[26u8; 32], &token, amount)
+            .set_fee(&rpc, "network", &[26u8; 32], &token, amount)
             .unwrap_err();
         assert!(matches!(error, crate::errors::SdkError::InvalidInput(_)));
     }
@@ -728,7 +726,7 @@ fn sas_set_fee_rejects_invalid_amount_before_rpc() {
 
 #[test]
 fn sas_set_fee_surfaces_unauthorized_simulation_as_contract_error_301() {
-    let env = Env::default();
+    let _env = Env::default();
     let seed = [27u8; 32];
     let (account_xdr, _) = write_pipeline_fixture(seed);
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -763,7 +761,7 @@ fn sas_set_fee_surfaces_unauthorized_simulation_as_contract_error_301() {
     let client = crate::client::SASClient::new(stellar_strkey::Contract([28u8; 32]).to_string());
     let token = stellar_strkey::Contract([29u8; 32]).to_string();
     let error = client
-        .set_fee(&env, &rpc, "network", &seed, &token, 1)
+        .set_fee(&rpc, "network", &seed, &token, 1)
         .unwrap_err();
     server.join().unwrap();
     assert!(matches!(error, crate::errors::SdkError::ContractError(301)));
@@ -781,7 +779,6 @@ fn schema_withdraw_fees_encodes_amount_and_settles() {
 
     let first = client
         .withdraw_schema_fees(
-            &env,
             &rpc,
             "Test SDF Network ; September 2015",
             &seed,
@@ -791,7 +788,6 @@ fn schema_withdraw_fees_encodes_amount_and_settles() {
         .unwrap();
     let second = client
         .withdraw_schema_fees(
-            &env,
             &rpc,
             "Test SDF Network ; September 2015",
             &seed,
@@ -857,20 +853,13 @@ fn schema_withdraw_fees_encodes_amount_and_settles() {
 
 #[test]
 fn schema_withdraw_fees_rejects_non_positive_amount_before_rpc() {
-    let env = Env::default();
+    let _env = Env::default();
     let client = crate::client::SASClient::new(stellar_strkey::Contract([53u8; 32]).to_string());
     let rpc = crate::rpc::RpcClient::new("http://127.0.0.1:1".to_string());
     let registry_contract_id = stellar_strkey::Contract([53u8; 32]).to_string();
     for amount in [0, -1] {
         let error = client
-            .withdraw_schema_fees(
-                &env,
-                &rpc,
-                "network",
-                &[54u8; 32],
-                &registry_contract_id,
-                amount,
-            )
+            .withdraw_schema_fees(&rpc, "network", &[54u8; 32], &registry_contract_id, amount)
             .unwrap_err();
         assert!(matches!(error, crate::errors::SdkError::InvalidInput(_)));
     }
@@ -878,7 +867,7 @@ fn schema_withdraw_fees_rejects_non_positive_amount_before_rpc() {
 
 #[test]
 fn schema_withdraw_fees_surfaces_unauthorized_simulation_as_contract_error_301() {
-    let env = Env::default();
+    let _env = Env::default();
     let seed = [55u8; 32];
     let (account_xdr, _) = write_pipeline_fixture(seed);
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -913,7 +902,7 @@ fn schema_withdraw_fees_surfaces_unauthorized_simulation_as_contract_error_301()
     let client = crate::client::SASClient::new(stellar_strkey::Contract([56u8; 32]).to_string());
     let registry_contract_id = stellar_strkey::Contract([56u8; 32]).to_string();
     let error = client
-        .withdraw_schema_fees(&env, &rpc, "network", &seed, &registry_contract_id, 500)
+        .withdraw_schema_fees(&rpc, "network", &seed, &registry_contract_id, 500)
         .unwrap_err();
     server.join().unwrap();
     assert!(matches!(error, crate::errors::SdkError::ContractError(301)));

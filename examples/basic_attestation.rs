@@ -126,7 +126,7 @@ fn main() {
     let client = SASClient::new(contract_id);
 
     eprintln!("Submitting attestation to Testnet...");
-    match client.attest(&env, &rpc, &network_passphrase, &secret_seed, attestation) {
+    match client.attest(&rpc, &network_passphrase, &secret_seed, attestation) {
         Ok(result) => {
             eprintln!(
                 "Success! Transaction hash: {}",

@@ -17,7 +17,7 @@ use soroban_sdk::xdr::{
     Transaction, TransactionExt, TransactionResult, TransactionResultResult, Uint256, VecM,
     WriteXdr,
 };
-use soroban_sdk::{Address, Bytes, BytesN, Env, String as SorobanString};
+use soroban_sdk::{Address, BytesN, Env, String as SorobanString};
 use std::sync::Arc;
 
 /// Distinguishes live, missing, and archived attestations — the
@@ -185,7 +185,7 @@ impl SASClient {
     }
 
     /// Configures the [`Env`] for this [`SASClient`].
-
+    ///
     /// Configures the signing key (32-byte secret seed) for transactions submitted by
     /// this [`SASClient`].
     pub fn with_signing_key(mut self, secret_seed: [u8; 32]) -> Self {
@@ -325,7 +325,7 @@ impl SASClient {
         network_passphrase: &str,
         admin_secret_seed: &[u8; 32],
     ) -> Result<GetTransactionResult, SdkError> {
-        let env = &Env::default();
+        let _env = &Env::default();
         self.submit_write(
             rpc,
             network_passphrase,
@@ -358,7 +358,7 @@ impl SASClient {
         rpc: &RpcClient,
         attester: &Address,
     ) -> Result<Option<u64>, SdkError> {
-        let env = &Env::default();
+        let env = attester.env();
         let arg = simulate::encode_arg(env, attester)?;
         invoke_read_only(
             env,
@@ -402,7 +402,7 @@ impl SASClient {
         resolver: &Address,
         revocable: bool,
     ) -> Result<Option<SchemaRecord>, SdkError> {
-        let env = &Env::default();
+        let env = resolver.env();
         let schema_val = SorobanString::from_str(env, schema);
         let args = vec![
             simulate::encode_arg(env, &schema_val)?,
@@ -439,7 +439,7 @@ impl SASClient {
     /// Delegates directly to [`soroban_sas_common::schema_uid`] so SDK consumers
     /// never duplicate the derivation logic.
     pub fn compute_schema_uid(schema: &str, resolver: &Address, revocable: bool) -> UID {
-        let env = &Env::default();
+        let env = resolver.env();
         let schema_str = SorobanString::from_str(env, schema);
         soroban_sas_common::schema_uid(env, &schema_str, resolver, revocable)
     }
@@ -469,7 +469,7 @@ impl SASClient {
                 "RPC client is required on SASClient; configure it via with_rpc(...)".to_string(),
             )
         })?;
-        let env = Env::default();
+        let _env = Env::default();
         self.get_schema(rpc, registry_id, schema_uid)
     }
 
@@ -502,7 +502,6 @@ impl SASClient {
                 "RPC client is required on SASClient; configure it via with_rpc(...)".to_string(),
             )
         })?;
-        let env = Env::default();
         self.get_schema_by_content(rpc, registry_id, schema, resolver, revocable)
     }
 
@@ -527,7 +526,7 @@ impl SASClient {
         rpc: &RpcClient,
         uid: &[u8; 32],
     ) -> Result<Option<Attestation>, SdkError> {
-        let env = &Env::default();
+        let _env = &Env::default();
         match self.fetch_attestation(rpc, uid)? {
             AttestationResult::Live(att) => Ok(Some(att)),
             AttestationResult::NotFound => Ok(None),
@@ -619,7 +618,7 @@ impl SASClient {
                 "RPC client is required on SASClient; configure it via with_rpc(...)".to_string(),
             )
         })?;
-        let env = Env::default();
+        let _env = Env::default();
         self.fetch_attestation(rpc, uid)
     }
 
@@ -655,7 +654,7 @@ impl SASClient {
                 "network passphrase is required on SASClient; configure it via with_network_passphrase(...)".to_string(),
             )
         })?;
-        let env = Env::default();
+        let _env = Env::default();
         self.restore_attestation_with_signer(rpc, network_passphrase, secret_seed, uid)
     }
 
@@ -672,7 +671,7 @@ impl SASClient {
         secret_seed: &[u8; 32],
         uid: [u8; 32],
     ) -> Result<GetTransactionResult, SdkError> {
-        let env = &Env::default();
+        let _env = &Env::default();
         let status = self.fetch_attestation(rpc, &uid)?;
         let info = match status {
             AttestationResult::Archived(info) => info,
@@ -1040,7 +1039,7 @@ impl SASClient {
         admin_secret_seed: &[u8; 32],
         registry_contract_id: &str,
     ) -> Result<GetTransactionResult, SdkError> {
-        let env = &Env::default();
+        let _env = &Env::default();
         self.submit_write(
             rpc,
             network_passphrase,
@@ -1324,7 +1323,7 @@ impl SASClient {
         secret_seed: &[u8; 32],
         attestation: Attestation,
     ) -> Result<GetTransactionResult, SdkError> {
-        let env = &Env::default();
+        let env = attestation.attester.env();
         ensure_attester_matches_secret(env, secret_seed, &attestation)?;
         let arg = simulate::encode_arg(env, &attestation)?;
         self.submit_write(
@@ -2141,7 +2140,7 @@ impl IndexerClient {
         rpc: &RpcClient,
         recipient: &str,
     ) -> Result<soroban_sdk::Vec<UID>, SdkError> {
-        let env = &Env::default();
+        let _env = &Env::default();
         self.get_attestations_by_recipient_filtered(rpc, recipient, false)
     }
 
@@ -2285,7 +2284,7 @@ fn ensure_attester_matches_secret(
     let public_key = signature::derive_public_key(secret_seed);
     let signer_strkey = stellar_strkey::ed25519::PublicKey(public_key).to_string();
     let signer = Address::from_string(&SorobanString::from_str(env, &signer_strkey));
-    if signer != attestation.attester {
+    if format!("{:?}", signer) != format!("{:?}", attestation.attester) {
         return Err(SdkError::ValidationError(
             "attestation.attester does not match the account derived from secret_seed".to_string(),
         ));
@@ -2698,6 +2697,7 @@ fn dry_run_write(
 mod tests {
     use super::*;
     use soroban_sdk::xdr::{AccountId, SequenceNumber, String32, Thresholds};
+    use soroban_sdk::Bytes;
     use soroban_sdk::{testutils::Address as _, BytesN};
     use std::io::{BufRead, BufReader, Read, Write};
 
@@ -2775,7 +2775,10 @@ mod tests {
         let contract_id = stellar_strkey::Contract([1u8; 32]).to_string();
         let client = SASClient::new(contract_id);
 
-        assert_eq!(client.fetch_admin(&env, &rpc).unwrap(), expected_admin);
+        assert_eq!(
+            format!("{:?}", client.fetch_admin(&rpc).unwrap()),
+            format!("{:?}", expected_admin)
+        );
     }
 
     #[test]
@@ -2855,10 +2858,10 @@ mod tests {
         let client = SASClient::new(contract_id);
 
         let fetched = client
-            .get_attestation(&env, &rpc, &[7u8; 32])
+            .get_attestation(&rpc, &[7u8; 32])
             .unwrap()
             .expect("expected an attestation to be found");
-        assert_eq!(fetched, attestation);
+        assert_eq!(format!("{:?}", fetched), format!("{:?}", attestation));
 
         // Also verify the structured `fetch_attestation` reports Live.
         let url2 = spawn_mock_rpc_server(format!(
@@ -2866,8 +2869,10 @@ mod tests {
         ));
         let rpc2 = RpcClient::new(url2);
         let client2 = SASClient::new(stellar_strkey::Contract([9u8; 32]).to_string());
-        match client2.fetch_attestation(&env, &rpc2, &[7u8; 32]).unwrap() {
-            AttestationResult::Live(a) => assert_eq!(a, attestation),
+        match client2.fetch_attestation(&rpc2, &[7u8; 32]).unwrap() {
+            AttestationResult::Live(a) => {
+                assert_eq!(format!("{:?}", a), format!("{:?}", attestation))
+            }
             other => panic!("expected Live, got {other:?}"),
         }
     }
@@ -2890,7 +2895,7 @@ mod tests {
         let rpc = RpcClient::new(url);
         let client = SASClient::new(contract_id);
 
-        let fetched = client.get_attestation(&env, &rpc, &[99u8; 32]).unwrap();
+        let fetched = client.get_attestation(&rpc, &[99u8; 32]).unwrap();
         assert!(fetched.is_none());
 
         let url2 = spawn_mock_rpc_server(format!(
@@ -2898,7 +2903,7 @@ mod tests {
         ));
         let rpc2 = RpcClient::new(url2);
         let client2 = SASClient::new(stellar_strkey::Contract([9u8; 32]).to_string());
-        match client2.fetch_attestation(&env, &rpc2, &[99u8; 32]).unwrap() {
+        match client2.fetch_attestation(&rpc2, &[99u8; 32]).unwrap() {
             AttestationResult::NotFound => {}
             other => panic!("expected NotFound, got {other:?}"),
         }
@@ -2927,10 +2932,10 @@ mod tests {
         let client = SASClient::new(stellar_strkey::Contract([9u8; 32]).to_string());
 
         let fetched = client
-            .fetch_attester_key(&env, &rpc, &attester)
+            .fetch_attester_key(&rpc, &attester)
             .unwrap()
             .expect("expected an active key record");
-        assert_eq!(fetched, record);
+        assert_eq!(format!("{:?}", fetched), format!("{:?}", record));
     }
 
     /// #214: `fetch_attester_key` returns `None` when the attester never
@@ -2951,7 +2956,7 @@ mod tests {
         let rpc = RpcClient::new(url);
         let client = SASClient::new(stellar_strkey::Contract([9u8; 32]).to_string());
 
-        let fetched = client.fetch_attester_key(&env, &rpc, &attester).unwrap();
+        let fetched = client.fetch_attester_key(&rpc, &attester).unwrap();
         assert!(fetched.is_none());
     }
 
@@ -2959,14 +2964,14 @@ mod tests {
     /// The SDK must surface structured restoration cost rather than `None`.
     #[test]
     fn get_attestation_archived_surfaces_restoration_cost() {
-        let env = Env::default();
+        let _env = Env::default();
         let contract_id = stellar_strkey::Contract([9u8; 32]).to_string();
         let body = r#"{"jsonrpc":"2.0","id":1,"result":{"latestLedger":100,"error":"HostError: Error(Storage, Archived)","restorePreamble":{"transactionData":"AAAAAQ==","minResourceFee":"12345"}}}"#.to_string();
         let url = spawn_mock_rpc_server(body);
         let rpc = RpcClient::new(url);
         let client = SASClient::new(contract_id.clone());
 
-        match client.fetch_attestation(&env, &rpc, &[7u8; 32]).unwrap() {
+        match client.fetch_attestation(&rpc, &[7u8; 32]).unwrap() {
             AttestationResult::Archived(info) => {
                 assert_eq!(info.uid, [7u8; 32]);
                 assert!(info.message.to_ascii_lowercase().contains("archived"));
@@ -2981,7 +2986,7 @@ mod tests {
         let url2 = spawn_mock_rpc_server(body2);
         let rpc2 = RpcClient::new(url2);
         let client2 = SASClient::new(contract_id);
-        match client2.get_attestation(&env, &rpc2, &[7u8; 32]) {
+        match client2.get_attestation(&rpc2, &[7u8; 32]) {
             Err(SdkError::RestorationRequired {
                 message,
                 min_resource_fee,
@@ -2999,13 +3004,13 @@ mod tests {
     /// e.g. older RPC nodes that only return the error string.
     #[test]
     fn get_attestation_archived_without_preamble() {
-        let env = Env::default();
+        let _env = Env::default();
         let contract_id = stellar_strkey::Contract([9u8; 32]).to_string();
         let body = r#"{"jsonrpc":"2.0","id":1,"result":{"latestLedger":100,"error":"HostError: entry is archived, needs restore"}}"#.to_string();
         let url = spawn_mock_rpc_server(body);
         let rpc = RpcClient::new(url);
         let client = SASClient::new(contract_id);
-        match client.fetch_attestation(&env, &rpc, &[7u8; 32]).unwrap() {
+        match client.fetch_attestation(&rpc, &[7u8; 32]).unwrap() {
             AttestationResult::Archived(info) => {
                 assert!(info.min_resource_fee.is_none());
             }
@@ -3038,24 +3043,24 @@ mod tests {
         let attester = stellar_strkey::ed25519::PublicKey([3u8; 32]).to_string();
 
         let fetched = client
-            .get_attestations_by_attester(&env, &rpc, &attester)
+            .get_attestations_by_attester(&rpc, &attester)
             .unwrap();
 
         assert_eq!(fetched.len(), 2);
         assert_eq!(
-            fetched.get(0).unwrap(),
-            UID(BytesN::from_array(&env, &[1u8; 32]))
+            format!("{:?}", fetched.get(0).unwrap()),
+            format!("{:?}", UID(BytesN::from_array(&env, &[1u8; 32])))
         );
         assert_eq!(
-            fetched.get(1).unwrap(),
-            UID(BytesN::from_array(&env, &[2u8; 32]))
+            format!("{:?}", fetched.get(1).unwrap()),
+            format!("{:?}", UID(BytesN::from_array(&env, &[2u8; 32])))
         );
     }
 
     // Tests for Issue #95 & #96: simulated transaction validation
     #[test]
     fn validation_rejects_simulation_with_no_results() {
-        let env = Env::default();
+        let _env = Env::default();
         let body =
             r#"{"jsonrpc":"2.0","id":1,"result":{"latestLedger":100,"results":[]}}"#.to_string();
         let url = spawn_mock_rpc_server(body);
@@ -3063,9 +3068,7 @@ mod tests {
         let contract_id = stellar_strkey::Contract([9u8; 32]).to_string();
         let client = SASClient::new(contract_id);
 
-        let err = client
-            .verify_attestation(&env, &rpc, &[7u8; 32])
-            .unwrap_err();
+        let err = client.verify_attestation(&rpc, &[7u8; 32]).unwrap_err();
         assert!(matches!(
             err,
             SdkError::RpcError(msg) if msg.contains("no results")
@@ -3074,7 +3077,7 @@ mod tests {
 
     #[test]
     fn get_attestation_rejects_wrong_ledger_entry_type() {
-        let env = Env::default();
+        let _env = Env::default();
         let contract_bytes = [9u8; 32];
         let contract_id = stellar_strkey::Contract(contract_bytes).to_string();
 
@@ -3103,13 +3106,13 @@ mod tests {
         let rpc = RpcClient::new(url);
         let client = SASClient::new(contract_id);
 
-        let result = client.get_attestation_ledger(&env, &rpc, &[7u8; 32]);
+        let result = client.get_attestation_ledger(&rpc, &[7u8; 32]);
         assert!(matches!(result, Err(SdkError::ValidationError(_))));
     }
 
     #[test]
     fn get_attestation_handles_malformed_xdr() {
-        let env = Env::default();
+        let _env = Env::default();
         let contract_id = stellar_strkey::Contract([9u8; 32]).to_string();
         let malformed_xdr = "AAAA"; // Truncated XDR
 
@@ -3120,7 +3123,7 @@ mod tests {
         let rpc = RpcClient::new(url);
         let client = SASClient::new(contract_id);
 
-        let result = client.get_attestation_ledger(&env, &rpc, &[7u8; 32]);
+        let result = client.get_attestation_ledger(&rpc, &[7u8; 32]);
         assert!(matches!(result, Err(SdkError::DecodingError(_))));
     }
 
@@ -3182,7 +3185,7 @@ mod tests {
 
     #[test]
     fn indexer_queries_reject_malformed_addresses_without_panicking_or_calling_rpc() {
-        let env = Env::default();
+        let _env = Env::default();
         let rpc = unreachable_rpc();
         let contract_id = stellar_strkey::Contract([1u8; 32]).to_string();
         let client = IndexerClient::new(contract_id);
@@ -3193,27 +3196,27 @@ mod tests {
             "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWH",
         ];
         for bad in bad_inputs {
-            match client.get_attestations_by_recipient(&env, &rpc, bad) {
+            match client.get_attestations_by_recipient(&rpc, bad) {
                 Err(SdkError::DecodingError(_)) => {}
                 other => panic!("get_attestations_by_recipient({bad:?}) = {other:?}"),
             }
-            match client.get_attestations_by_attester(&env, &rpc, bad) {
+            match client.get_attestations_by_attester(&rpc, bad) {
                 Err(SdkError::DecodingError(_)) => {}
                 other => panic!("get_attestations_by_attester({bad:?}) = {other:?}"),
             }
-            match client.get_count_by_recipient(&env, &rpc, bad) {
+            match client.get_count_by_recipient(&rpc, bad) {
                 Err(SdkError::DecodingError(_)) => {}
                 other => panic!("get_count_by_recipient({bad:?}) = {other:?}"),
             }
-            match client.get_count_by_attester(&env, &rpc, bad) {
+            match client.get_count_by_attester(&rpc, bad) {
                 Err(SdkError::DecodingError(_)) => {}
                 other => panic!("get_count_by_attester({bad:?}) = {other:?}"),
             }
-            match client.get_attestations_by_recipient_paginated(&env, &rpc, bad, 0, 10) {
+            match client.get_attestations_by_recipient_paginated(&rpc, bad, 0, 10) {
                 Err(SdkError::DecodingError(_)) => {}
                 other => panic!("get_attestations_by_recipient_paginated({bad:?}) = {other:?}"),
             }
-            match client.get_attestations_by_attester_paginated(&env, &rpc, bad, 0, 10) {
+            match client.get_attestations_by_attester_paginated(&rpc, bad, 0, 10) {
                 Err(SdkError::DecodingError(_)) => {}
                 other => panic!("get_attestations_by_attester_paginated({bad:?}) = {other:?}"),
             }
@@ -3240,30 +3243,39 @@ mod tests {
 
         let rpc = RpcClient::new(spawn_mock_rpc_server(body.clone()));
         assert_eq!(
-            client
-                .get_attestations_by_recipient_paginated(&env, &rpc, &account, 2, 2)
-                .unwrap(),
-            page
+            format!(
+                "{:?}",
+                client
+                    .get_attestations_by_recipient_paginated(&rpc, &account, 2, 2)
+                    .unwrap()
+            ),
+            format!("{:?}", page)
         );
         let rpc = RpcClient::new(spawn_mock_rpc_server(body.clone()));
         assert_eq!(
-            client
-                .get_attestations_by_schema_paginated(&env, &rpc, &[2u8; 32], 2, 2)
-                .unwrap(),
-            page
+            format!(
+                "{:?}",
+                client
+                    .get_attestations_by_schema_paginated(&rpc, &[2u8; 32], 2, 2)
+                    .unwrap()
+            ),
+            format!("{:?}", page)
         );
         let rpc = RpcClient::new(spawn_mock_rpc_server(body));
         assert_eq!(
-            client
-                .get_attestations_by_attester_paginated(&env, &rpc, &account, 2, 2)
-                .unwrap(),
-            page
+            format!(
+                "{:?}",
+                client
+                    .get_attestations_by_attester_paginated(&rpc, &account, 2, 2)
+                    .unwrap()
+            ),
+            format!("{:?}", page)
         );
     }
 
     #[test]
     fn register_schema_rejects_a_resolver_that_is_not_a_contract_address() {
-        let env = Env::default();
+        let _env = Env::default();
         let rpc = unreachable_rpc();
         let client = SASClient::new(stellar_strkey::Contract([1u8; 32]).to_string());
         let seed = [7u8; 32];
@@ -3273,7 +3285,6 @@ mod tests {
 
         let err = client
             .register_schema(
-                &env,
                 &rpc,
                 "Test SDF Network ; September 2015",
                 &seed,
@@ -3329,7 +3340,7 @@ mod tests {
         let schema = "name String, age U32";
 
         for revocable in [true, false] {
-            let uid_sdk = SASClient::compute_schema_uid(&env, schema, &resolver, revocable);
+            let uid_sdk = SASClient::compute_schema_uid(schema, &resolver, revocable);
             let uid_common = soroban_sas_common::schema_uid(
                 &env,
                 &SorobanString::from_str(&env, schema),
@@ -3347,7 +3358,7 @@ mod tests {
         let registry_id = stellar_strkey::Contract([2u8; 32]).to_string();
         let client_id = stellar_strkey::Contract([1u8; 32]).to_string();
 
-        let uid = SASClient::compute_schema_uid(&env, "score U32", &resolver, true);
+        let uid = SASClient::compute_schema_uid("score U32", &resolver, true);
         let record = SchemaRecord {
             uid: uid.clone(),
             schema: SorobanString::from_str(&env, "score U32"),
@@ -3372,7 +3383,7 @@ mod tests {
             .with_registry(registry_id.clone());
 
         let fetched = client.fetch_schema(&uid.0.to_array()).unwrap();
-        assert_eq!(fetched, Some(record));
+        assert_eq!(format!("{:?}", fetched), format!("{:?}", Some(record)));
 
         // Missing schema returns None
         let none_opt: Option<SchemaRecord> = None;
@@ -3413,7 +3424,7 @@ mod tests {
         let registry_id = stellar_strkey::Contract([2u8; 32]).to_string();
         let client_id = stellar_strkey::Contract([1u8; 32]).to_string();
 
-        let uid = SASClient::compute_schema_uid(&env, "score U32", &resolver, true);
+        let uid = SASClient::compute_schema_uid("score U32", &resolver, true);
         let record = SchemaRecord {
             uid,
             schema: SorobanString::from_str(&env, "score U32"),
@@ -3439,7 +3450,7 @@ mod tests {
         let fetched = client
             .fetch_schema_by_content("score U32", &resolver, true)
             .unwrap();
-        assert_eq!(fetched, Some(record));
+        assert_eq!(format!("{:?}", fetched), format!("{:?}", Some(record)));
 
         // Unregistered content comes back as None, not an error.
         let none_opt: Option<SchemaRecord> = None;
@@ -3544,7 +3555,7 @@ mod tests {
             SorobanResources, SorobanTransactionData, Thresholds, Uint256, VecM,
         };
 
-        let env = Env::default();
+        let _env = Env::default();
         let contract_id = stellar_strkey::Contract([1u8; 32]).to_string();
         let seed = [7u8; 32];
         let public_key = signature::derive_public_key(&seed);
@@ -3713,7 +3724,7 @@ mod tests {
         // attempted — verified here by pointing at a port nothing listens
         // on and asserting the failure is the validation error, not a
         // transport error.
-        let env = Env::default();
+        let _env = Env::default();
         let secret_seed = [7u8; 32];
         let contract_id = stellar_strkey::Contract([8u8; 32]).to_string();
         let rpc = RpcClient::new("http://127.0.0.1:1".to_string());
@@ -3721,7 +3732,6 @@ mod tests {
 
         let err = client
             .set_fee_dry_run(
-                &env,
                 &rpc,
                 &secret_seed,
                 "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
@@ -3735,7 +3745,7 @@ mod tests {
     fn register_schema_dry_run_reports_fee_for_registry_writes() {
         // The dry-run mechanism is generic across contracts: it must work
         // identically for Schema Registry writes, not just SAS ones.
-        let env = Env::default();
+        let _env = Env::default();
         let secret_seed = [9u8; 32];
         let public_key = signature::derive_public_key(&secret_seed);
         let registry_contract_id = stellar_strkey::Contract([10u8; 32]).to_string();
@@ -3750,7 +3760,6 @@ mod tests {
 
         let result = client
             .register_schema_dry_run(
-                &env,
                 &rpc,
                 &secret_seed,
                 &registry_contract_id,
