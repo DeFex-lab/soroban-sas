@@ -24,6 +24,7 @@ use soroban_sas_sdk::attestation_builder::AttestationRequestBuilder;
 use soroban_sas_sdk::client::{IndexerClient, SASClient};
 use soroban_sas_sdk::rpc::RpcClient;
 use soroban_sas_sdk::signature::derive_public_key;
+use soroban_sas_sdk::transaction::SubmissionPolicy;
 use soroban_sdk::{Bytes, Env};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -274,12 +275,12 @@ async fn schema_registration_attest_revoke_and_indexer_lookup() {
     let passphrase = network_passphrase();
     let secret = parse_secret_seed(&secret_key());
     let admin = admin_address(&secret_key());
-    let sas_client = SASClient::new(sas_id.clone());
+    let sas_client = SASClient::new(sas_id.clone())
+        .with_submission_policy(SubmissionPolicy::default().with_max_polls(30));
 
     // 1. Schema registration.
     sas_client
         .register_schema(
-            &env,
             &rpc,
             &passphrase,
             &secret,
@@ -291,7 +292,7 @@ async fn schema_registration_attest_revoke_and_indexer_lookup() {
         .expect("register_schema failed");
     let resolver_address =
         soroban_sdk::Address::from_string(&soroban_sdk::String::from_str(&env, &resolver_id));
-    let schema_uid = SASClient::compute_schema_uid(&env, "bool verified", &resolver_address, true);
+    let schema_uid = SASClient::compute_schema_uid("bool verified", &resolver_address, true);
 
     // Use a different recipient — the contract rejects self-attestation
     // (recipient == attester). Derive a second throwaway keypair from a
@@ -311,11 +312,11 @@ async fn schema_registration_attest_revoke_and_indexer_lookup() {
     let uid = attestation.uid.0.to_array();
 
     sas_client
-        .attest(&env, &rpc, &passphrase, &secret, attestation)
+        .attest(&rpc, &passphrase, &secret, attestation)
         .expect("attest failed");
 
     let fetched = sas_client
-        .get_attestation(&env, &rpc, &uid)
+        .get_attestation(&rpc, &uid)
         .expect("get_attestation failed")
         .expect("attestation was not found after a successful attest");
     assert_eq!(fetched.uid.0.to_array(), uid);
@@ -328,7 +329,7 @@ async fn schema_registration_attest_revoke_and_indexer_lookup() {
     // discoverable by recipient without knowing its UID in advance.
     let indexer_client = IndexerClient::new(indexer_id);
     let by_recipient = indexer_client
-        .get_attestations_by_recipient(&env, &rpc, &recipient)
+        .get_attestations_by_recipient(&rpc, &recipient)
         .expect("get_attestations_by_recipient failed");
     assert!(
         by_recipient.iter().any(|u| u.0.to_array() == uid),
@@ -337,10 +338,10 @@ async fn schema_registration_attest_revoke_and_indexer_lookup() {
 
     // 4. Revocation.
     sas_client
-        .revoke(&env, &rpc, &passphrase, &secret, &uid)
+        .revoke(&rpc, &passphrase, &secret, &uid)
         .expect("revoke failed");
     let revoked = sas_client
-        .get_attestation(&env, &rpc, &uid)
+        .get_attestation(&rpc, &uid)
         .expect("get_attestation after revoke failed")
         .expect("revoked attestation must still be readable");
     assert_ne!(
@@ -401,11 +402,11 @@ async fn sac_fee_deduction_on_attest_with_value() {
     let rpc = RpcClient::new(rpc_str.clone());
     let secret = parse_secret_seed(&secret_string);
     let admin = admin_address(&secret_string);
-    let sas_client = SASClient::new(sas_id.clone());
+    let sas_client = SASClient::new(sas_id.clone())
+        .with_submission_policy(SubmissionPolicy::default().with_max_polls(30));
 
     sas_client
         .register_schema(
-            &env,
             &rpc,
             &passphrase,
             &secret,
@@ -417,10 +418,10 @@ async fn sac_fee_deduction_on_attest_with_value() {
         .expect("register_schema failed");
     let resolver_address =
         soroban_sdk::Address::from_string(&soroban_sdk::String::from_str(&env, &resolver_id));
-    let schema_uid = SASClient::compute_schema_uid(&env, "bool paid", &resolver_address, true);
+    let schema_uid = SASClient::compute_schema_uid("bool paid", &resolver_address, true);
 
     sas_client
-        .set_fee(&env, &rpc, &passphrase, &secret, &token_id, FEE_AMOUNT)
+        .set_fee(&rpc, &passphrase, &secret, &token_id, FEE_AMOUNT)
         .expect("set_fee failed");
 
     let balance_before: i128 = invoke(
@@ -451,7 +452,6 @@ async fn sac_fee_deduction_on_attest_with_value() {
 
     sas_client
         .attest_with_value(
-            &env,
             &rpc,
             &passphrase,
             &secret,
